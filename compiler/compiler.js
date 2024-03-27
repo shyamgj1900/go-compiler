@@ -693,19 +693,17 @@ const compile_comp = {
     } else {
       instrs[wc++] = { tag: "LDC", val: comp.Value };
     }
-    
   },
   Ident: (comp, ce) => {
-    if(comp.Name === "true" || comp.Name === "false"){
+    if (comp.Name === "true" || comp.Name === "false") {
       instrs[wc++] = { tag: "LDC", val: comp.Name === "true" };
-    } else{
+    } else {
       instrs[wc++] = {
         tag: "LD",
         sym: comp.Name,
         pos: compile_time_environment_position(ce, comp.Name),
       };
     }
-    
   },
   UnaryExpr: (comp, ce) => {
     compile(comp.X, ce);
@@ -759,20 +757,17 @@ const compile_comp = {
   },
   CallExpr: (comp, ce) => {
     compile(comp.Fun, ce);
-    if (comp.Args !== null){
+    if (comp.Args !== null) {
       for (let arg of comp.Args) {
         compile(arg, ce);
       }
       instrs[wc++] = { tag: "CALL", arity: comp.Args.length };
-    }
-    else{
+    } else {
       instrs[wc++] = { tag: "CALL", arity: 0 };
     }
-    
   },
   ExprStmt: (comp, ce) => {
     compile(comp.X, ce);
-    instrs[wc++] = { tag: "POP" };
   },
   FuncProc: (comp, ce) => {
     let prms = [];
@@ -1119,7 +1114,7 @@ fs.readFile("code.json", "utf8", (err, data) => {
   json_code = { NodeType: "BlockStmt", List: obj.Decls };
   compile_program(json_code);
   // run(580);
-  run(2000);
+  run(600);
 });
 
 // obj = {
