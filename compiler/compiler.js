@@ -769,6 +769,9 @@ const compile_comp = {
   ExprStmt: (comp, ce) => {
     compile(comp.X, ce);
   },
+  ParenExpr: (comp, ce) => {
+    compile(comp.X, ce);
+  },
   FuncProc: (comp, ce) => {
     let prms = [];
     let arity = comp.Params.List !== null ? comp.Params.List.length : 0;

@@ -10,7 +10,7 @@ func plus(a int, b int) int {
 
 func anotherFunction(a int) int {
 	var x = 2
-	x = x + a
+	x = (x + a) * 4
 	return x * 3
 }
 
