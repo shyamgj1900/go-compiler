@@ -693,13 +693,19 @@ const compile_comp = {
     } else {
       instrs[wc++] = { tag: "LDC", val: comp.Value };
     }
+    
   },
   Ident: (comp, ce) => {
-    instrs[wc++] = {
-      tag: "LD",
-      sym: comp.Name,
-      pos: compile_time_environment_position(ce, comp.Name),
-    };
+    if(comp.Name === "true" || comp.Name === "false"){
+      instrs[wc++] = { tag: "LDC", val: comp.Name === "true" };
+    } else{
+      instrs[wc++] = {
+        tag: "LD",
+        sym: comp.Name,
+        pos: compile_time_environment_position(ce, comp.Name),
+      };
+    }
+    
   },
   UnaryExpr: (comp, ce) => {
     compile(comp.X, ce);
@@ -710,24 +716,24 @@ const compile_comp = {
     compile(comp.Y, ce);
     instrs[wc++] = { tag: "BINOP", sym: comp.Op };
   },
-  log: (comp, ce) => {
-    compile(
-      comp.sym == "&&"
-        ? {
-            tag: "cond_expr",
-            pred: comp.frst,
-            cons: { tag: "lit", val: true },
-            alt: comp.scnd,
-          }
-        : {
-            tag: "cond_expr",
-            pred: cmd.frst,
-            cons: cmd.scnd,
-            alt: { tag: "lit", val: false },
-          },
-      ce
-    );
-  },
+  // log: (comp, ce) => {
+  //   compile(
+  //     comp.sym == "&&"
+  //       ? {
+  //           tag: "cond_expr",
+  //           pred: comp.frst,
+  //           cons: { tag: "lit", val: true },
+  //           alt: comp.scnd,
+  //         }
+  //       : {
+  //           tag: "cond_expr",
+  //           pred: cmd.frst,
+  //           cons: cmd.scnd,
+  //           alt: { tag: "lit", val: false },
+  //         },
+  //     ce
+  //   );
+  // },
   cond: (comp, ce) => {
     compile(comp.pred, ce);
     const jump_on_false_instruction = { tag: "JOF" };
@@ -753,10 +759,16 @@ const compile_comp = {
   },
   CallExpr: (comp, ce) => {
     compile(comp.Fun, ce);
-    for (let arg of comp.Args) {
-      compile(arg, ce);
+    if (comp.Args !== null){
+      for (let arg of comp.Args) {
+        compile(arg, ce);
+      }
+      instrs[wc++] = { tag: "CALL", arity: comp.Args.length };
     }
-    instrs[wc++] = { tag: "CALL", arity: comp.Args.length };
+    else{
+      instrs[wc++] = { tag: "CALL", arity: 0 };
+    }
+    
   },
   ExprStmt: (comp, ce) => {
     compile(comp.X, ce);
@@ -874,6 +886,8 @@ const binop_microcode = {
   ">": (x, y) => x > y,
   "===": (x, y) => x === y,
   "!==": (x, y) => x !== y,
+  "&&": (x, y) => x && y,
+  "||": (x, y) => x || y,
 };
 
 // v2 is popped before v1
@@ -1104,7 +1118,8 @@ fs.readFile("code.json", "utf8", (err, data) => {
   obj = JSON.parse(data); // Convert string from file into JavaScript object
   json_code = { NodeType: "BlockStmt", List: obj.Decls };
   compile_program(json_code);
-  run(580);
+  // run(580);
+  run(2000);
 });
 
 // obj = {
