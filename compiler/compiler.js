@@ -584,7 +584,7 @@ const value_index = (frame, x) => {
 // to save the creation of an intermediate
 // argument array
 const builtin_implementation = {
-  display: () => {
+  println: () => {
     const address = OS.pop();
     display(address_to_JS_value(address));
     return address;
@@ -758,6 +758,10 @@ const compile_comp = {
     }
     instrs[wc++] = { tag: "CALL", arity: comp.Args.length };
   },
+  ExprStmt: (comp, ce) => {
+    compile(comp.X, ce);
+    instrs[wc++] = { tag: "POP" };
+  },
   FuncProc: (comp, ce) => {
     let prms = [];
     let arity = comp.Params.List !== null ? comp.Params.List.length : 0;
@@ -887,7 +891,6 @@ const apply_unop = (op, v) =>
   JS_value_to_address(unop_microcode[op](address_to_JS_value(v)));
 
 const apply_builtin = (builtin_id) => {
-  display(builtin_id, "apply_builtin: builtin_id:");
   const result = builtin_array[builtin_id]();
   OS.pop(); // pop fun
   push(OS, result);
@@ -1101,5 +1104,299 @@ fs.readFile("code.json", "utf8", (err, data) => {
   obj = JSON.parse(data); // Convert string from file into JavaScript object
   json_code = { NodeType: "BlockStmt", List: obj.Decls };
   compile_program(json_code);
-  console.log(run(1000));
+  run(580);
 });
+
+// obj = {
+//   NodeType: "File",
+//   Doc: null,
+//   Package: null,
+//   Name: { NodeType: "Ident", Name: "main" },
+//   Decls: [
+//     {
+//       NodeType: "FuncDecl",
+//       Recv: null,
+//       Name: { NodeType: "Ident", Name: "plus" },
+//       Type: {
+//         NodeType: "FuncType",
+//         TypeParams: null,
+//         Params: {
+//           NodeType: "FieldList",
+//           List: [
+//             {
+//               NodeType: "Field",
+//               Names: [{ NodeType: "Ident", Name: "a" }],
+//               Type: { NodeType: "Ident", Name: "int" },
+//             },
+//             {
+//               NodeType: "Field",
+//               Names: [{ NodeType: "Ident", Name: "b" }],
+//               Type: { NodeType: "Ident", Name: "int" },
+//             },
+//           ],
+//         },
+//         Results: {
+//           NodeType: "FieldList",
+//           List: [
+//             {
+//               NodeType: "Field",
+//               Names: null,
+//               Type: { NodeType: "Ident", Name: "int" },
+//             },
+//           ],
+//         },
+//       },
+//       Body: {
+//         NodeType: "BlockStmt",
+//         List: [
+//           {
+//             NodeType: "DeclStmt",
+//             Decl: {
+//               NodeType: "GenDecl",
+//               Tok: "var",
+//               Specs: [
+//                 {
+//                   NodeType: "ValueSpec",
+//                   Names: [{ NodeType: "Ident", Name: "z" }],
+//                   Type: null,
+//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "3" }],
+//                 },
+//               ],
+//             },
+//           },
+//           {
+//             NodeType: "DeclStmt",
+//             Decl: {
+//               NodeType: "GenDecl",
+//               Tok: "var",
+//               Specs: [
+//                 {
+//                   NodeType: "ValueSpec",
+//                   Names: [{ NodeType: "Ident", Name: "x" }],
+//                   Type: null,
+//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "2" }],
+//                 },
+//               ],
+//             },
+//           },
+//           {
+//             NodeType: "AssignStmt",
+//             Lhs: [{ NodeType: "Ident", Name: "a" }],
+//             Tok: "=",
+//             Rhs: [
+//               {
+//                 NodeType: "BinaryExpr",
+//                 X: { NodeType: "Ident", Name: "a" },
+//                 Op: "*",
+//                 Y: { NodeType: "Ident", Name: "z" },
+//               },
+//             ],
+//           },
+//           {
+//             NodeType: "AssignStmt",
+//             Lhs: [{ NodeType: "Ident", Name: "x" }],
+//             Tok: "=",
+//             Rhs: [
+//               {
+//                 NodeType: "BinaryExpr",
+//                 X: { NodeType: "Ident", Name: "x" },
+//                 Op: "+",
+//                 Y: { NodeType: "Ident", Name: "b" },
+//               },
+//             ],
+//           },
+//           {
+//             NodeType: "ReturnStmt",
+//             Results: [
+//               {
+//                 NodeType: "BinaryExpr",
+//                 X: { NodeType: "Ident", Name: "a" },
+//                 Op: "-",
+//                 Y: { NodeType: "Ident", Name: "x" },
+//               },
+//             ],
+//           },
+//         ],
+//       },
+//     },
+//     {
+//       NodeType: "FuncDecl",
+//       Recv: null,
+//       Name: { NodeType: "Ident", Name: "anotherFunction" },
+//       Type: {
+//         NodeType: "FuncType",
+//         TypeParams: null,
+//         Params: {
+//           NodeType: "FieldList",
+//           List: [
+//             {
+//               NodeType: "Field",
+//               Names: [{ NodeType: "Ident", Name: "a" }],
+//               Type: { NodeType: "Ident", Name: "int" },
+//             },
+//           ],
+//         },
+//         Results: {
+//           NodeType: "FieldList",
+//           List: [
+//             {
+//               NodeType: "Field",
+//               Names: null,
+//               Type: { NodeType: "Ident", Name: "int" },
+//             },
+//           ],
+//         },
+//       },
+//       Body: {
+//         NodeType: "BlockStmt",
+//         List: [
+//           {
+//             NodeType: "DeclStmt",
+//             Decl: {
+//               NodeType: "GenDecl",
+//               Tok: "var",
+//               Specs: [
+//                 {
+//                   NodeType: "ValueSpec",
+//                   Names: [{ NodeType: "Ident", Name: "x" }],
+//                   Type: null,
+//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "2" }],
+//                 },
+//               ],
+//             },
+//           },
+//           {
+//             NodeType: "AssignStmt",
+//             Lhs: [{ NodeType: "Ident", Name: "x" }],
+//             Tok: "=",
+//             Rhs: [
+//               {
+//                 NodeType: "BinaryExpr",
+//                 X: { NodeType: "Ident", Name: "x" },
+//                 Op: "+",
+//                 Y: { NodeType: "Ident", Name: "a" },
+//               },
+//             ],
+//           },
+//           {
+//             NodeType: "ReturnStmt",
+//             Results: [
+//               {
+//                 NodeType: "BinaryExpr",
+//                 X: { NodeType: "Ident", Name: "x" },
+//                 Op: "*",
+//                 Y: { NodeType: "BasicLit", Kind: "INT", Value: "3" },
+//               },
+//             ],
+//           },
+//         ],
+//       },
+//     },
+//     {
+//       NodeType: "FuncDecl",
+//       Recv: null,
+//       Name: { NodeType: "Ident", Name: "main" },
+//       Type: {
+//         NodeType: "FuncType",
+//         TypeParams: null,
+//         Params: { NodeType: "FieldList", List: null },
+//         Results: null,
+//       },
+//       Body: {
+//         NodeType: "BlockStmt",
+//         List: [
+//           {
+//             NodeType: "DeclStmt",
+//             Decl: {
+//               NodeType: "GenDecl",
+//               Tok: "var",
+//               Specs: [
+//                 {
+//                   NodeType: "ValueSpec",
+//                   Names: [{ NodeType: "Ident", Name: "a" }],
+//                   Type: null,
+//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "2" }],
+//                 },
+//               ],
+//             },
+//           },
+//           {
+//             NodeType: "DeclStmt",
+//             Decl: {
+//               NodeType: "GenDecl",
+//               Tok: "var",
+//               Specs: [
+//                 {
+//                   NodeType: "ValueSpec",
+//                   Names: [{ NodeType: "Ident", Name: "res" }],
+//                   Type: null,
+//                   Values: [
+//                     {
+//                       NodeType: "CallExpr",
+//                       Fun: { NodeType: "Ident", Name: "plus" },
+//                       Args: [
+//                         { NodeType: "BasicLit", Kind: "INT", Value: "1" },
+//                         { NodeType: "Ident", Name: "a" },
+//                       ],
+//                     },
+//                   ],
+//                 },
+//               ],
+//             },
+//           },
+//           {
+//             NodeType: "DeclStmt",
+//             Decl: {
+//               NodeType: "GenDecl",
+//               Tok: "var",
+//               Specs: [
+//                 {
+//                   NodeType: "ValueSpec",
+//                   Names: [{ NodeType: "Ident", Name: "res2" }],
+//                   Type: null,
+//                   Values: [
+//                     {
+//                       NodeType: "CallExpr",
+//                       Fun: { NodeType: "Ident", Name: "anotherFunction" },
+//                       Args: [{ NodeType: "BasicLit", Kind: "INT", Value: "2" }],
+//                     },
+//                   ],
+//                 },
+//               ],
+//             },
+//           },
+//           {
+//             NodeType: "ExprStmt",
+//             X: {
+//               NodeType: "CallExpr",
+//               Fun: { NodeType: "Ident", Name: "println" },
+//               Args: [{ NodeType: "Ident", Name: "res2" }],
+//             },
+//           },
+//         ],
+//       },
+//     },
+//   ],
+//   Imports: null,
+//   Unresolved: null,
+//   Comments: null,
+//   FileSet: {
+//     Base: 350,
+//     Files: [
+//       {
+//         Name: "code.go",
+//         Base: 1,
+//         Size: 348,
+//         Lines: [
+//           0, 13, 14, 44, 58, 72, 86, 100, 117, 119, 120, 153, 167, 181, 198,
+//           200, 201, 215, 216, 230, 248, 273, 293, 327, 345, 346,
+//         ],
+//         Infos: null,
+//       },
+//     ],
+//   },
+// };
+
+// json_code = { NodeType: "BlockStmt", List: obj.Decls };
+// compile_program(json_code);
+// run(1000);

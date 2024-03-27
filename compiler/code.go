@@ -17,7 +17,10 @@ func anotherFunction(a int) int{
 func main() {
 
     var a = 2
-    var res = plus(1, 2)
+    println(a)
+    var res = plus(1, a)
+    println(res)
     var res2 = anotherFunction(2)
+    println(res2)
 
 }
