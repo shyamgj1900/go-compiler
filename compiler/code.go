@@ -36,6 +36,26 @@ func log() bool {
 	return x || y
 }
 
+func cond() bool {
+	// var x = 1 == 1
+	if 1 != 1 {
+		println(1)
+	} else {
+		println(0)
+	}
+	return true
+
+}
+
+func loop() int {
+	var i int = 1
+	for i < 3 {
+		i = i + 1
+	}
+
+	return i
+}
+
 func main() {
 
 	var a = 2
@@ -50,4 +70,11 @@ func main() {
 	// println(res4)
 	var res5 = log()
 	println(res5)
+
+	var res6 = cond()
+	println(res6)
+
+	var res7 = loop()
+	println(res7)
+
 }

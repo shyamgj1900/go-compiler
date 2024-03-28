@@ -732,24 +732,27 @@ const compile_comp = {
   //     ce
   //   );
   // },
-  cond: (comp, ce) => {
-    compile(comp.pred, ce);
+  IfStmt: (comp, ce) => {
+    // display(comp.Cond)
+    // display(comp.Body)
+    // display(comp.Else)
+    compile(comp.Cond, ce);
     const jump_on_false_instruction = { tag: "JOF" };
     instrs[wc++] = jump_on_false_instruction;
-    compile(comp.cons, ce);
+    compile(comp.Body, ce);
     const goto_instruction = { tag: "GOTO" };
     instrs[wc++] = goto_instruction;
     const alternative_address = wc;
     jump_on_false_instruction.addr = alternative_address;
-    compile(comp.alt, ce);
+    compile(comp.Else, ce);
     goto_instruction.addr = wc;
   },
-  while: (comp, ce) => {
+  ForStmt: (comp, ce) => {
     const loop_start = wc;
-    compile(comp.pred, ce);
+    compile(comp.Cond, ce);
     const jump_on_false_instruction = { tag: "JOF" };
     instrs[wc++] = jump_on_false_instruction;
-    compile(comp.body, ce);
+    compile(comp.Body, ce);
     instrs[wc++] = { tag: "POP" };
     instrs[wc++] = { tag: "GOTO", addr: loop_start };
     jump_on_false_instruction.addr = wc;
@@ -882,8 +885,8 @@ const binop_microcode = {
   "<=": (x, y) => x <= y,
   ">=": (x, y) => x >= y,
   ">": (x, y) => x > y,
-  "===": (x, y) => x === y,
-  "!==": (x, y) => x !== y,
+  "==": (x, y) => x === y,
+  "!=": (x, y) => x !== y,
   "&&": (x, y) => x && y,
   "||": (x, y) => x || y,
 };
@@ -1117,7 +1120,7 @@ fs.readFile("code.json", "utf8", (err, data) => {
   json_code = { NodeType: "BlockStmt", List: obj.Decls };
   compile_program(json_code);
   // run(580);
-  run(600);
+  run(3000);
 });
 
 // obj = {
