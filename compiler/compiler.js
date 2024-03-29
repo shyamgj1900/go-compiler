@@ -714,28 +714,7 @@ const compile_comp = {
     compile(comp.Y, ce);
     instrs[wc++] = { tag: "BINOP", sym: comp.Op };
   },
-  // log: (comp, ce) => {
-  //   compile(
-  //     comp.sym == "&&"
-  //       ? {
-  //           tag: "cond_expr",
-  //           pred: comp.frst,
-  //           cons: { tag: "lit", val: true },
-  //           alt: comp.scnd,
-  //         }
-  //       : {
-  //           tag: "cond_expr",
-  //           pred: cmd.frst,
-  //           cons: cmd.scnd,
-  //           alt: { tag: "lit", val: false },
-  //         },
-  //     ce
-  //   );
-  // },
   IfStmt: (comp, ce) => {
-    // display(comp.Cond)
-    // display(comp.Body)
-    // display(comp.Else)
     compile(comp.Cond, ce);
     const jump_on_false_instruction = { tag: "JOF" };
     instrs[wc++] = jump_on_false_instruction;
@@ -1132,7 +1111,7 @@ fs.readFile("code.json", "utf8", (err, data) => {
 //     {
 //       NodeType: "FuncDecl",
 //       Recv: null,
-//       Name: { NodeType: "Ident", Name: "plus" },
+//       Name: { NodeType: "Ident", Name: "Factorial" },
 //       Type: {
 //         NodeType: "FuncType",
 //         TypeParams: null,
@@ -1141,12 +1120,7 @@ fs.readFile("code.json", "utf8", (err, data) => {
 //           List: [
 //             {
 //               NodeType: "Field",
-//               Names: [{ NodeType: "Ident", Name: "a" }],
-//               Type: { NodeType: "Ident", Name: "int" },
-//             },
-//             {
-//               NodeType: "Field",
-//               Names: [{ NodeType: "Ident", Name: "b" }],
+//               Names: [{ NodeType: "Ident", Name: "n" }],
 //               Type: { NodeType: "Ident", Name: "int" },
 //             },
 //           ],
@@ -1166,142 +1140,58 @@ fs.readFile("code.json", "utf8", (err, data) => {
 //         NodeType: "BlockStmt",
 //         List: [
 //           {
-//             NodeType: "DeclStmt",
-//             Decl: {
-//               NodeType: "GenDecl",
-//               Tok: "var",
-//               Specs: [
+//             NodeType: "IfStmt",
+//             Init: null,
+//             Cond: {
+//               NodeType: "BinaryExpr",
+//               X: {
+//                 NodeType: "BinaryExpr",
+//                 X: { NodeType: "Ident", Name: "n" },
+//                 Op: "==",
+//                 Y: { NodeType: "BasicLit", Kind: "INT", Value: "0" },
+//               },
+//               Op: "||",
+//               Y: {
+//                 NodeType: "BinaryExpr",
+//                 X: { NodeType: "Ident", Name: "n" },
+//                 Op: "==",
+//                 Y: { NodeType: "BasicLit", Kind: "INT", Value: "1" },
+//               },
+//             },
+//             Body: {
+//               NodeType: "BlockStmt",
+//               List: [
 //                 {
-//                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "z" }],
-//                   Type: null,
-//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "3" }],
+//                   NodeType: "ReturnStmt",
+//                   Results: [{ NodeType: "BasicLit", Kind: "INT", Value: "1" }],
 //                 },
 //               ],
 //             },
-//           },
-//           {
-//             NodeType: "DeclStmt",
-//             Decl: {
-//               NodeType: "GenDecl",
-//               Tok: "var",
-//               Specs: [
-//                 {
-//                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "x" }],
-//                   Type: null,
-//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "2" }],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "AssignStmt",
-//             Lhs: [{ NodeType: "Ident", Name: "a" }],
-//             Tok: "=",
-//             Rhs: [
-//               {
-//                 NodeType: "BinaryExpr",
-//                 X: { NodeType: "Ident", Name: "a" },
-//                 Op: "*",
-//                 Y: { NodeType: "Ident", Name: "z" },
-//               },
-//             ],
-//           },
-//           {
-//             NodeType: "AssignStmt",
-//             Lhs: [{ NodeType: "Ident", Name: "x" }],
-//             Tok: "=",
-//             Rhs: [
-//               {
-//                 NodeType: "BinaryExpr",
-//                 X: { NodeType: "Ident", Name: "x" },
-//                 Op: "+",
-//                 Y: { NodeType: "Ident", Name: "b" },
-//               },
-//             ],
+//             Else: null,
 //           },
 //           {
 //             NodeType: "ReturnStmt",
 //             Results: [
 //               {
 //                 NodeType: "BinaryExpr",
-//                 X: { NodeType: "Ident", Name: "a" },
-//                 Op: "-",
-//                 Y: { NodeType: "Ident", Name: "x" },
-//               },
-//             ],
-//           },
-//         ],
-//       },
-//     },
-//     {
-//       NodeType: "FuncDecl",
-//       Recv: null,
-//       Name: { NodeType: "Ident", Name: "anotherFunction" },
-//       Type: {
-//         NodeType: "FuncType",
-//         TypeParams: null,
-//         Params: {
-//           NodeType: "FieldList",
-//           List: [
-//             {
-//               NodeType: "Field",
-//               Names: [{ NodeType: "Ident", Name: "a" }],
-//               Type: { NodeType: "Ident", Name: "int" },
-//             },
-//           ],
-//         },
-//         Results: {
-//           NodeType: "FieldList",
-//           List: [
-//             {
-//               NodeType: "Field",
-//               Names: null,
-//               Type: { NodeType: "Ident", Name: "int" },
-//             },
-//           ],
-//         },
-//       },
-//       Body: {
-//         NodeType: "BlockStmt",
-//         List: [
-//           {
-//             NodeType: "DeclStmt",
-//             Decl: {
-//               NodeType: "GenDecl",
-//               Tok: "var",
-//               Specs: [
-//                 {
-//                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "x" }],
-//                   Type: null,
-//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "2" }],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "AssignStmt",
-//             Lhs: [{ NodeType: "Ident", Name: "x" }],
-//             Tok: "=",
-//             Rhs: [
-//               {
-//                 NodeType: "BinaryExpr",
-//                 X: { NodeType: "Ident", Name: "x" },
-//                 Op: "+",
-//                 Y: { NodeType: "Ident", Name: "a" },
-//               },
-//             ],
-//           },
-//           {
-//             NodeType: "ReturnStmt",
-//             Results: [
-//               {
-//                 NodeType: "BinaryExpr",
-//                 X: { NodeType: "Ident", Name: "x" },
+//                 X: { NodeType: "Ident", Name: "n" },
 //                 Op: "*",
-//                 Y: { NodeType: "BasicLit", Kind: "INT", Value: "3" },
+//                 Y: {
+//                   NodeType: "CallExpr",
+//                   Fun: { NodeType: "Ident", Name: "Factorial" },
+//                   Args: [
+//                     {
+//                       NodeType: "BinaryExpr",
+//                       X: { NodeType: "Ident", Name: "n" },
+//                       Op: "-",
+//                       Y: {
+//                         NodeType: "BasicLit",
+//                         Kind: "INT",
+//                         Value: "1",
+//                       },
+//                     },
+//                   ],
+//                 },
 //               },
 //             ],
 //           },
@@ -1329,52 +1219,13 @@ fs.readFile("code.json", "utf8", (err, data) => {
 //               Specs: [
 //                 {
 //                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "a" }],
-//                   Type: null,
-//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "2" }],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "DeclStmt",
-//             Decl: {
-//               NodeType: "GenDecl",
-//               Tok: "var",
-//               Specs: [
-//                 {
-//                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "res" }],
+//                   Names: [{ NodeType: "Ident", Name: "fact" }],
 //                   Type: null,
 //                   Values: [
 //                     {
 //                       NodeType: "CallExpr",
-//                       Fun: { NodeType: "Ident", Name: "plus" },
-//                       Args: [
-//                         { NodeType: "BasicLit", Kind: "INT", Value: "1" },
-//                         { NodeType: "Ident", Name: "a" },
-//                       ],
-//                     },
-//                   ],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "DeclStmt",
-//             Decl: {
-//               NodeType: "GenDecl",
-//               Tok: "var",
-//               Specs: [
-//                 {
-//                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "res2" }],
-//                   Type: null,
-//                   Values: [
-//                     {
-//                       NodeType: "CallExpr",
-//                       Fun: { NodeType: "Ident", Name: "anotherFunction" },
-//                       Args: [{ NodeType: "BasicLit", Kind: "INT", Value: "2" }],
+//                       Fun: { NodeType: "Ident", Name: "Factorial" },
+//                       Args: [{ NodeType: "BasicLit", Kind: "INT", Value: "3" }],
 //                     },
 //                   ],
 //                 },
@@ -1386,7 +1237,7 @@ fs.readFile("code.json", "utf8", (err, data) => {
 //             X: {
 //               NodeType: "CallExpr",
 //               Fun: { NodeType: "Ident", Name: "println" },
-//               Args: [{ NodeType: "Ident", Name: "res2" }],
+//               Args: [{ NodeType: "Ident", Name: "fact" }],
 //             },
 //           },
 //         ],
@@ -1397,15 +1248,15 @@ fs.readFile("code.json", "utf8", (err, data) => {
 //   Unresolved: null,
 //   Comments: null,
 //   FileSet: {
-//     Base: 350,
+//     Base: 349,
 //     Files: [
 //       {
 //         Name: "code.go",
 //         Base: 1,
-//         Size: 348,
+//         Size: 347,
 //         Lines: [
-//           0, 13, 14, 44, 58, 72, 86, 100, 117, 119, 120, 153, 167, 181, 198,
-//           200, 201, 215, 216, 230, 248, 273, 293, 327, 345, 346,
+//           0, 13, 14, 96, 124, 175, 198, 209, 212, 242, 244, 245, 259, 304, 305,
+//           330, 345,
 //         ],
 //         Infos: null,
 //       },
@@ -1415,4 +1266,5 @@ fs.readFile("code.json", "utf8", (err, data) => {
 
 // json_code = { NodeType: "BlockStmt", List: obj.Decls };
 // compile_program(json_code);
-// run(1000);
+// // run(580);
+// run(3000);
