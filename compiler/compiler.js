@@ -4,36 +4,20 @@ Object.entries(require("sicp")).forEach(
   ([name, exported]) => (global[name] = exported)
 );
 
-// ***************************************************
-// Virtual machine with tagged pointers for Source §3-
+// ************************************************************
+// Virtual machine with tagged pointers for a sublanguage of Go
 // set up for mark-and-sweep garbage collection
-// ***************************************************/
+// ************************************************************/
 
-// how to run: Copy this program to your favorite
-// JavaScript development environment. Use
-// ECMAScript 2016 or higher in Node.js.
-// Import the NPM package sicp from
-// https://www.npmjs.com/package/sicp
-
-// for syntax and semantics of Source §4,
-// see https://docs.sourceacademy.org/source_4.pdf
-
-// simplifications:
-//
-// (1) every statement produces a value
-//
-// In this evaluator, all statements produce
-// a value, and declarations produce undefined,
-// whereas JavaScript distinguishes value-producing
-// statements. This makes a difference at the top
-// level, outside of function bodies. For example,
-// in JavaScript, the execution of
-// 1; const x = 2;
-// results in 1, whereas the evaluator gives undefined.
-// For details on this see:
-// https://sourceacademy.org/sicpjs/4.1.2#ex-4.8
-//
-// (2) no loops and arrays
+// Implement Sleep
+// const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function blockingSleep(ms) {
+  const startTime = new Date().getTime();
+  let currentTime = null;
+  do {
+    currentTime = new Date().getTime();
+  } while (currentTime - startTime < ms);
+}
 
 // **********************
 // using arrays as stacks
@@ -262,11 +246,6 @@ const word_to_string = (word) => {
 // All values are allocated on the heap as nodes. The first
 // word of the node is a header, and the first byte of the
 // header is a tag that identifies the type of node
-
-// a little trick: tags are all negative so that we can use
-// the first 4 bytes of the header as forwarding address
-// in garbage collection: If the (signed) Int32 is
-// non-negative, the node has been forwarded already.
 
 const False_tag = 0;
 const True_tag = 1;
@@ -574,26 +553,12 @@ const builtin_implementation = {
     display(address_to_JS_value(address));
     return address;
   },
+  sleep: () => {
+    const time = OS.pop();
+    blockingSleep(address_to_JS_value(time));
+  },
   error: () => error(address_to_JS_value(OS.pop())),
-  pair: () => {
-    const tl = OS.pop();
-    const hd = OS.pop();
-    return heap_allocate_Pair(hd, tl);
-  },
-  is_pair: () => (is_Pair(OS.pop()) ? True : False),
-  head: () => heap_get_child(OS.pop(), 0),
-  tail: () => heap_get_child(OS.pop(), 1),
   is_null: () => (is_Null(OS.pop()) ? True : False),
-  set_head: () => {
-    const val = OS.pop();
-    const p = OS.pop();
-    heap_set_child(p, 0, val);
-  },
-  set_tail: () => {
-    const val = OS.pop();
-    const p = OS.pop();
-    heap_set_child(p, 1, val);
-  },
 };
 
 const builtins = {};
