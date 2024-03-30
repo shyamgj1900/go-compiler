@@ -1,0 +1,248 @@
+{
+  "NodeType": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": { "NodeType": "Ident", "Name": "main" },
+  "Decls": [
+    {
+      "NodeType": "GenDecl",
+      "Tok": "import",
+      "Specs": [
+        {
+          "NodeType": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "NodeType": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"fmt\""
+          }
+        },
+        {
+          "NodeType": "ImportSpec",
+          "Name": null,
+          "Path": {
+            "NodeType": "BasicLit",
+            "Kind": "STRING",
+            "Value": "\"time\""
+          }
+        }
+      ]
+    },
+    {
+      "NodeType": "FuncDecl",
+      "Recv": null,
+      "Name": { "NodeType": "Ident", "Name": "f" },
+      "Type": {
+        "NodeType": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "NodeType": "FieldList",
+          "List": [
+            {
+              "NodeType": "Field",
+              "Names": [{ "NodeType": "Ident", "Name": "from" }],
+              "Type": { "NodeType": "Ident", "Name": "string" }
+            }
+          ]
+        },
+        "Results": null
+      },
+      "Body": {
+        "NodeType": "BlockStmt",
+        "List": [
+          {
+            "NodeType": "ForStmt",
+            "Init": {
+              "NodeType": "AssignStmt",
+              "Lhs": [{ "NodeType": "Ident", "Name": "i" }],
+              "Tok": ":=",
+              "Rhs": [{ "NodeType": "BasicLit", "Kind": "INT", "Value": "0" }]
+            },
+            "Cond": {
+              "NodeType": "BinaryExpr",
+              "X": { "NodeType": "Ident", "Name": "i" },
+              "Op": "\u003c",
+              "Y": { "NodeType": "BasicLit", "Kind": "INT", "Value": "3" }
+            },
+            "Post": {
+              "NodeType": "IncDecStmt",
+              "X": { "NodeType": "Ident", "Name": "i" },
+              "Tok": "++"
+            },
+            "Body": {
+              "NodeType": "BlockStmt",
+              "List": [
+                {
+                  "NodeType": "ExprStmt",
+                  "X": {
+                    "NodeType": "CallExpr",
+                    "Fun": {
+                      "NodeType": "SelectorExpr",
+                      "X": { "NodeType": "Ident", "Name": "fmt" },
+                      "Sel": { "NodeType": "Ident", "Name": "Println" }
+                    },
+                    "Args": [
+                      { "NodeType": "Ident", "Name": "from" },
+                      {
+                        "NodeType": "BasicLit",
+                        "Kind": "STRING",
+                        "Value": "\":\""
+                      },
+                      { "NodeType": "Ident", "Name": "i" }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "NodeType": "FuncDecl",
+      "Recv": null,
+      "Name": { "NodeType": "Ident", "Name": "main" },
+      "Type": {
+        "NodeType": "FuncType",
+        "TypeParams": null,
+        "Params": { "NodeType": "FieldList", "List": null },
+        "Results": null
+      },
+      "Body": {
+        "NodeType": "BlockStmt",
+        "List": [
+          {
+            "NodeType": "ExprStmt",
+            "X": {
+              "NodeType": "CallExpr",
+              "Fun": { "NodeType": "Ident", "Name": "f" },
+              "Args": [
+                {
+                  "NodeType": "BasicLit",
+                  "Kind": "STRING",
+                  "Value": "\"direct\""
+                }
+              ]
+            }
+          },
+          {
+            "NodeType": "GoStmt",
+            "Call": {
+              "NodeType": "CallExpr",
+              "Fun": { "NodeType": "Ident", "Name": "f" },
+              "Args": [
+                {
+                  "NodeType": "BasicLit",
+                  "Kind": "STRING",
+                  "Value": "\"goroutine\""
+                }
+              ]
+            }
+          },
+          {
+            "NodeType": "GoStmt",
+            "Call": {
+              "NodeType": "CallExpr",
+              "Fun": {
+                "NodeType": "FuncLit",
+                "Type": {
+                  "NodeType": "FuncType",
+                  "TypeParams": null,
+                  "Params": {
+                    "NodeType": "FieldList",
+                    "List": [
+                      {
+                        "NodeType": "Field",
+                        "Names": [{ "NodeType": "Ident", "Name": "msg" }],
+                        "Type": { "NodeType": "Ident", "Name": "string" }
+                      }
+                    ]
+                  },
+                  "Results": null
+                },
+                "Body": {
+                  "NodeType": "BlockStmt",
+                  "List": [
+                    {
+                      "NodeType": "ExprStmt",
+                      "X": {
+                        "NodeType": "CallExpr",
+                        "Fun": {
+                          "NodeType": "SelectorExpr",
+                          "X": { "NodeType": "Ident", "Name": "fmt" },
+                          "Sel": { "NodeType": "Ident", "Name": "Println" }
+                        },
+                        "Args": [{ "NodeType": "Ident", "Name": "msg" }]
+                      }
+                    }
+                  ]
+                }
+              },
+              "Args": [
+                {
+                  "NodeType": "BasicLit",
+                  "Kind": "STRING",
+                  "Value": "\"going\""
+                }
+              ]
+            }
+          },
+          {
+            "NodeType": "ExprStmt",
+            "X": {
+              "NodeType": "CallExpr",
+              "Fun": {
+                "NodeType": "SelectorExpr",
+                "X": { "NodeType": "Ident", "Name": "time" },
+                "Sel": { "NodeType": "Ident", "Name": "Sleep" }
+              },
+              "Args": [
+                {
+                  "NodeType": "SelectorExpr",
+                  "X": { "NodeType": "Ident", "Name": "time" },
+                  "Sel": { "NodeType": "Ident", "Name": "Second" }
+                }
+              ]
+            }
+          },
+          {
+            "NodeType": "ExprStmt",
+            "X": {
+              "NodeType": "CallExpr",
+              "Fun": {
+                "NodeType": "SelectorExpr",
+                "X": { "NodeType": "Ident", "Name": "fmt" },
+                "Sel": { "NodeType": "Ident", "Name": "Println" }
+              },
+              "Args": [
+                {
+                  "NodeType": "BasicLit",
+                  "Kind": "STRING",
+                  "Value": "\"done\""
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 312,
+    "Files": [
+      {
+        "Name": "test.go",
+        "Base": 1,
+        "Size": 310,
+        "Lines": [
+          0, 13, 14, 23, 30, 38, 40, 41, 63, 92, 126, 132, 134, 135, 149, 150,
+          166, 167, 189, 190, 216, 241, 256, 257, 285, 309
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

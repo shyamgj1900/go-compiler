@@ -1,19 +1,13 @@
 import axios from "axios";
-import { FILES } from "./constants";
 
 const API = axios.create({
-  baseURL: "https://emkc.org/api/v2/piston",
+  baseURL: "http://localhost:3000",
 });
 
 export const executeCode = async (language, sourceCode) => {
-  const response = await API.post("/execute", {
+  const response = await API.post("/api/v1/execute", {
     language: language,
-    version: FILES[language].version,
-    files: [
-      {
-        content: sourceCode,
-      },
-    ],
+    content: sourceCode,
   });
   return response.data;
 };

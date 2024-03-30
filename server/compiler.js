@@ -1,37 +1,26 @@
-// ***************************************************
-// Solution Homework 6: Based on solution by NG CHI SERN
-// ***************************************************
+const { display, parse } = require("sicp");
 
-// ***************************************************
-// Virtual machine with tagged pointers for Source §3-
+Object.entries(require("sicp")).forEach(
+  ([name, exported]) => (global[name] = exported)
+);
+
+// ************************************************************
+// Virtual machine with tagged pointers for a sublanguage of Go
 // set up for mark-and-sweep garbage collection
-// ***************************************************/
+// ************************************************************/
 
-// how to run: Copy this program to your favorite
-// JavaScript development environment. Use
-// ECMAScript 2016 or higher in Node.js.
-// Import the NPM package sicp from
-// https://www.npmjs.com/package/sicp
+// Implement Sleep
+// const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function blockingSleep(ms) {
+  const startTime = new Date().getTime();
+  let currentTime = null;
+  do {
+    currentTime = new Date().getTime();
+  } while (currentTime - startTime < ms);
+}
 
-// for syntax and semantics of Source §4,
-// see https://docs.sourceacademy.org/source_4.pdf
-
-// simplifications:
-//
-// (1) every statement produces a value
-//
-// In this evaluator, all statements produce
-// a value, and declarations produce undefined,
-// whereas JavaScript distinguishes value-producing
-// statements. This makes a difference at the top
-// level, outside of function bodies. For example,
-// in JavaScript, the execution of
-// 1; const x = 2;
-// results in 1, whereas the evaluator gives undefined.
-// For details on this see:
-// https://sourceacademy.org/sicpjs/4.1.2#ex-4.8
-//
-// (2) no loops and arrays
+// Output of program
+OUTPUTS = [];
 
 // **********************
 // using arrays as stacks
@@ -60,117 +49,6 @@ const list_to_array = (xs) =>
 
 // simplify parameter format
 const parameters = (xs) => map((x) => head(tail(x)), xs);
-
-// turn tagged list syntax from parse into JSON object
-const ast_to_json = (t) => {
-  switch (head(t)) {
-    case "literal":
-      return { tag: "lit", val: head(tail(t)) };
-    case "name":
-      return { tag: "nam", sym: head(tail(t)) };
-    case "application":
-      return {
-        tag: "app",
-        fun: ast_to_json(head(tail(t))),
-        args: list_to_array(map(ast_to_json, head(tail(tail(t))))),
-      };
-    case "logical_composition":
-      return {
-        tag: "log",
-        sym: head(tail(t)),
-        frst: ast_to_json(head(tail(tail(t)))),
-        scnd: ast_to_json(head(tail(tail(tail(t))))),
-      };
-    case "binary_operator_combination":
-      return {
-        tag: "binop",
-        sym: head(tail(t)),
-        frst: ast_to_json(head(tail(tail(t)))),
-        scnd: ast_to_json(head(tail(tail(tail(t))))),
-      };
-    case "unary_operator_combination":
-      return {
-        tag: "unop",
-        sym: head(tail(t)),
-        frst: ast_to_json(head(tail(tail(t)))),
-      };
-    case "lambda_expression":
-      return {
-        tag: "lam",
-        prms: list_to_array(parameters(head(tail(t)))),
-        body: ast_to_json(head(tail(tail(t)))),
-      };
-    case "sequence":
-      return {
-        tag: "seq",
-        stmts: list_to_array(map(ast_to_json, head(tail(t)))),
-      };
-    case "block":
-      return {
-        tag: "blk",
-        body: ast_to_json(head(tail(t))),
-      };
-    case "variable_declaration":
-      return {
-        tag: "let",
-        sym: head(tail(head(tail(t)))),
-        expr: ast_to_json(head(tail(tail(t)))),
-      };
-    case "constant_declaration":
-      return {
-        tag: "const",
-        sym: head(tail(head(tail(t)))),
-        expr: ast_to_json(head(tail(tail(t)))),
-      };
-    case "assignment":
-      return {
-        tag: "assmt",
-        sym: head(tail(head(tail(t)))),
-        expr: ast_to_json(head(tail(tail(t)))),
-      };
-    case "conditional_statement":
-      return {
-        tag: "cond", // dont distinguish stmt and expr
-        pred: ast_to_json(head(tail(t))),
-        cons: ast_to_json(head(tail(tail(t)))),
-        alt: ast_to_json(head(tail(tail(tail(t))))),
-      };
-    case "conditional_expression":
-      return {
-        tag: "cond", // dont distinguish stmt and expr
-        pred: ast_to_json(head(tail(t))),
-        cons: ast_to_json(head(tail(tail(t)))),
-        alt: ast_to_json(head(tail(tail(tail(t))))),
-      };
-    case "function_declaration":
-      return {
-        tag: "fun",
-        sym: head(tail(head(tail(t)))),
-        prms: list_to_array(parameters(head(tail(tail(t))))),
-        body: ast_to_json(head(tail(tail(tail(t))))),
-      };
-    case "return_statement":
-      return {
-        tag: "ret",
-        expr: ast_to_json(head(tail(t))),
-      };
-    case "while_loop":
-      return {
-        tag: "while",
-        pred: ast_to_json(head(tail(t))),
-        body: ast_to_json(head(tail(tail(t)))),
-      };
-    default:
-      error(t, "unknown syntax:");
-  }
-};
-
-// parse, turn into json (using ast_to_json),
-// and wrap in a block
-const parse_to_json = (program_text) => ({
-  tag: "blk",
-  body: ast_to_json(parse(program_text)),
-});
 
 // *************************
 // HEAP
@@ -226,6 +104,7 @@ const heap_allocate = (tag, size) => {
   // a value of -1 in free indicates the
   // end of the free list
   if (free === -1) {
+    display("GARBAGE COLLECTION");
     mark_sweep();
   }
 
@@ -237,7 +116,6 @@ const heap_allocate = (tag, size) => {
   return address;
 };
 
-// modified
 const mark_bit = 7;
 
 const UNMARKED = 0;
@@ -323,6 +201,13 @@ const heap_set_child = (address, child_index, value) =>
 
 const heap_get_tag = (address) => HEAP.getInt8(address * word_size);
 
+const heap_get_mark_bit = (address) =>
+  HEAP.getInt8(address * word_size + mark_offset);
+
+// To indicate a node as marked
+const heap_set_mark_bit = (address, x) =>
+  HEAP.setInt8(address * word_size + mark_offset, x);
+
 const heap_get_size = (address) =>
   HEAP.getUint16(address * word_size + size_offset);
 
@@ -364,11 +249,6 @@ const word_to_string = (word) => {
 // All values are allocated on the heap as nodes. The first
 // word of the node is a header, and the first byte of the
 // header is a tag that identifies the type of node
-
-// a little trick: tags are all negative so that we can use
-// the first 4 bytes of the header as forwarding address
-// in garbage collection: If the (signed) Int32 is
-// non-negative, the node has been forwarded already.
 
 const False_tag = 0;
 const True_tag = 1;
@@ -519,8 +399,8 @@ const heap_Frame_display = (address) => {
 //  2 bytes #children, 1 byte unused]
 // followed by the addresses of its frames
 
-const heap_allocate_Environment = (number_of_frames) =>
-  heap_allocate(Environment_tag, number_of_frames + 1);
+const heap_allocate_Environment = (number_of_frames, frame_address = Null) =>
+  heap_allocate(Environment_tag, number_of_frames + 1, frame_address);
 
 // access environment given by address
 // using a "position", i.e. a pair of
@@ -544,7 +424,7 @@ const heap_set_Environment_value = (env_address, position, value) => {
 // environment to the new environment.
 // enter the address of the new frame to end
 // of the new environment
-const heap_Environment_extend = (frame_address, env_address) => {
+const heap_Environment_extend = (frame_address, env_address, frame_alloc) => {
   const old_size = heap_get_size(env_address);
   // modified: should not free frame address and env address here
   ALLOCATING = [frame_address, env_address];
@@ -671,31 +551,18 @@ const value_index = (frame, x) => {
 // to save the creation of an intermediate
 // argument array
 const builtin_implementation = {
-  display: () => {
+  println: () => {
     const address = OS.pop();
     display(address_to_JS_value(address));
+    OUTPUTS.push(String(address_to_JS_value(address)));
     return address;
   },
+  sleep: () => {
+    const time = OS.pop();
+    blockingSleep(address_to_JS_value(time));
+  },
   error: () => error(address_to_JS_value(OS.pop())),
-  pair: () => {
-    const tl = OS.pop();
-    const hd = OS.pop();
-    return heap_allocate_Pair(hd, tl);
-  },
-  is_pair: () => (is_Pair(OS.pop()) ? True : False),
-  head: () => heap_get_child(OS.pop(), 0),
-  tail: () => heap_get_child(OS.pop(), 1),
   is_null: () => (is_Null(OS.pop()) ? True : False),
-  set_head: () => {
-    const val = OS.pop();
-    const p = OS.pop();
-    heap_set_child(p, 0, val);
-  },
-  set_tail: () => {
-    const val = OS.pop();
-    const p = OS.pop();
-    heap_set_child(p, 1, val);
-  },
 };
 
 const builtins = {};
@@ -743,12 +610,21 @@ const global_compile_environment = [
 
 // scanning out the declarations from (possibly nested)
 // sequences of statements, ignoring blocks
-const scan_for_locals = (comp) =>
-  comp.tag === "seq"
-    ? comp.stmts.reduce((acc, x) => acc.concat(scan_for_locals(x)), [])
-    : ["let", "const", "fun"].includes(comp.tag)
-    ? [comp.sym]
-    : [];
+function scan_for_locals(statements) {
+  //declare an empty array
+  let locals = [];
+  for (let statement of statements) {
+    switch (statement.NodeType) {
+      case "DeclStmt":
+        locals.push(statement.Decl.Specs[0].Names[0].Name);
+        break;
+      case "FuncDecl":
+        locals.push(statement.Name.Name);
+        break;
+    }
+  }
+  return locals;
+}
 
 const compile_sequence = (seq, ce) => {
   if (seq.length === 0) return (instrs[wc++] = { tag: "LDC", val: undefined });
@@ -765,135 +641,140 @@ let wc;
 let instrs;
 
 const compile_comp = {
-  lit: (comp, ce) => {
-    instrs[wc++] = { tag: "LDC", val: comp.val };
+  BasicLit: (comp, ce) => {
+    if (comp.Kind === "INT") {
+      instrs[wc++] = { tag: "LDC", val: Number(comp.Value) };
+    } else {
+      instrs[wc++] = { tag: "LDC", val: comp.Value };
+    }
   },
-  nam:
-    // store precomputed position information in LD instruction
-    (comp, ce) => {
+  Ident: (comp, ce) => {
+    if (comp.Name === "true" || comp.Name === "false") {
+      instrs[wc++] = { tag: "LDC", val: comp.Name === "true" };
+    } else {
       instrs[wc++] = {
         tag: "LD",
-        sym: comp.sym,
-        pos: compile_time_environment_position(ce, comp.sym),
+        sym: comp.Name,
+        pos: compile_time_environment_position(ce, comp.Name),
       };
-    },
-  unop: (comp, ce) => {
-    compile(comp.frst, ce);
-    instrs[wc++] = { tag: "UNOP", sym: comp.sym };
+    }
   },
-  binop: (comp, ce) => {
-    compile(comp.frst, ce);
-    compile(comp.scnd, ce);
-    instrs[wc++] = { tag: "BINOP", sym: comp.sym };
+  UnaryExpr: (comp, ce) => {
+    compile(comp.X, ce);
+    instrs[wc++] = { tag: "UNOP", sym: comp.Op };
   },
-  log: (comp, ce) => {
-    compile(
-      comp.sym == "&&"
-        ? {
-            tag: "cond_expr",
-            pred: comp.frst,
-            cons: { tag: "lit", val: true },
-            alt: comp.scnd,
-          }
-        : {
-            tag: "cond_expr",
-            pred: cmd.frst,
-            cons: cmd.scnd,
-            alt: { tag: "lit", val: false },
-          },
-      ce
-    );
+  BinaryExpr: (comp, ce) => {
+    compile(comp.X, ce);
+    compile(comp.Y, ce);
+    instrs[wc++] = { tag: "BINOP", sym: comp.Op };
   },
-  cond: (comp, ce) => {
-    compile(comp.pred, ce);
+  IfStmt: (comp, ce) => {
+    compile(comp.Cond, ce);
     const jump_on_false_instruction = { tag: "JOF" };
     instrs[wc++] = jump_on_false_instruction;
-    compile(comp.cons, ce);
+    compile(comp.Body, ce);
     const goto_instruction = { tag: "GOTO" };
     instrs[wc++] = goto_instruction;
     const alternative_address = wc;
     jump_on_false_instruction.addr = alternative_address;
-    compile(comp.alt, ce);
+    compile(comp.Else, ce);
     goto_instruction.addr = wc;
   },
-  while: (comp, ce) => {
+  ForStmt: (comp, ce) => {
     const loop_start = wc;
-    compile(comp.pred, ce);
+    compile(comp.Cond, ce);
     const jump_on_false_instruction = { tag: "JOF" };
     instrs[wc++] = jump_on_false_instruction;
-    compile(comp.body, ce);
+    compile(comp.Body, ce);
     instrs[wc++] = { tag: "POP" };
     instrs[wc++] = { tag: "GOTO", addr: loop_start };
     jump_on_false_instruction.addr = wc;
     instrs[wc++] = { tag: "LDC", val: undefined };
   },
-  app: (comp, ce) => {
-    compile(comp.fun, ce);
-    for (let arg of comp.args) {
-      compile(arg, ce);
+  CallExpr: (comp, ce) => {
+    compile(comp.Fun, ce);
+    if (comp.Args !== null) {
+      for (let arg of comp.Args) {
+        compile(arg, ce);
+      }
+      instrs[wc++] = { tag: "CALL", arity: comp.Args.length };
+    } else {
+      instrs[wc++] = { tag: "CALL", arity: 0 };
     }
-    instrs[wc++] = { tag: "CALL", arity: comp.args.length };
   },
-  assmt:
-    // store precomputed position info in ASSIGN instruction
-    (comp, ce) => {
-      compile(comp.expr, ce);
-      instrs[wc++] = {
-        tag: "ASSIGN",
-        pos: compile_time_environment_position(ce, comp.sym),
-      };
-    },
-  lam: (comp, ce) => {
-    instrs[wc++] = { tag: "LDF", arity: comp.arity, addr: wc + 1 };
+  ExprStmt: (comp, ce) => {
+    compile(comp.X, ce);
+  },
+  ParenExpr: (comp, ce) => {
+    compile(comp.X, ce);
+  },
+  FuncProc: (comp, ce) => {
+    let prms = [];
+    let arity = comp.Params.List !== null ? comp.Params.List.length : 0;
     // jump over the body of the lambda expression
     const goto_instruction = { tag: "GOTO" };
-    instrs[wc++] = goto_instruction;
+    if (comp.Name !== "main") {
+      instrs[wc++] = { tag: "LDF", arity: arity, addr: wc + 1, name: "other" };
+      instrs[wc++] = goto_instruction;
+    } else {
+      instrs[wc++] = { tag: "LDF", arity: arity, addr: wc, name: "main" };
+    }
+    if (arity > 0) {
+      for (let prm of comp.Params.List) {
+        prms.push(prm.Names[0].Name);
+      }
+    }
     // extend compile-time environment
-    compile(comp.body, compile_time_environment_extend(comp.prms, ce));
-    instrs[wc++] = { tag: "LDC", val: undefined };
-    instrs[wc++] = { tag: "RESET" };
+    compile(comp.Body, compile_time_environment_extend(prms, ce));
+    // instrs[wc++] = { tag: "LDC", val: undefined };
+    // instrs[wc++] = { tag: "RESET" };
     goto_instruction.addr = wc;
   },
-  seq: (comp, ce) => compile_sequence(comp.stmts, ce),
-  blk: (comp, ce) => {
-    const locals = scan_for_locals(comp.body);
+  List: (comp, ce) => compile_sequence(comp, ce),
+  BlockStmt: (comp, ce) => {
+    const locals = scan_for_locals(comp.List);
     instrs[wc++] = { tag: "ENTER_SCOPE", num: locals.length };
     compile(
-      comp.body,
+      comp.List,
       // extend compile-time environment
       compile_time_environment_extend(locals, ce)
     );
     instrs[wc++] = { tag: "EXIT_SCOPE" };
   },
-  let: (comp, ce) => {
-    compile(comp.expr, ce);
+  DeclStmt: (comp, ce) => {
+    compile(comp.Decl.Specs[0].Values[0], ce);
     instrs[wc++] = {
       tag: "ASSIGN",
-      pos: compile_time_environment_position(ce, comp.sym),
+      pos: compile_time_environment_position(
+        ce,
+        comp.Decl.Specs[0].Names[0].Name
+      ),
     };
   },
-  const: (comp, ce) => {
-    compile(comp.expr, ce);
+  AssignStmt: (comp, ce) => {
+    compile(comp.Rhs[0], ce);
     instrs[wc++] = {
       tag: "ASSIGN",
-      pos: compile_time_environment_position(ce, comp.sym),
+      pos: compile_time_environment_position(ce, comp.Lhs[0].Name),
     };
   },
-  ret: (comp, ce) => {
-    compile(comp.expr, ce);
-    if (comp.expr.tag === "app") {
-      // tail call: turn CALL into TAILCALL
-      instrs[wc - 1].tag = "TAIL_CALL";
-    } else {
-      instrs[wc++] = { tag: "RESET" };
-    }
+  ReturnStmt: (comp, ce) => {
+    compile(comp.Results[0], ce);
+    instrs[wc++] = { tag: "RESET" };
   },
-  fun: (comp, ce) => {
+  FuncDecl: (comp, ce) => {
     compile(
       {
-        tag: "const",
-        sym: comp.sym,
-        expr: { tag: "lam", prms: comp.prms, body: comp.body },
+        NodeType: "AssignStmt",
+        Lhs: [comp.Name],
+        Rhs: [
+          {
+            NodeType: "FuncProc",
+            Params: comp.Type.Params,
+            Body: comp.Body,
+            Name: comp.Name.Name,
+          },
+        ],
       },
       ce
     );
@@ -903,7 +784,11 @@ const compile_comp = {
 // compile component into instruction array instrs,
 // starting at wc (write counter)
 const compile = (comp, ce) => {
-  compile_comp[comp.tag](comp, ce);
+  if (Array.isArray(comp)) {
+    compile_comp["List"](comp, ce);
+  } else {
+    compile_comp[comp.NodeType](comp, ce);
+  }
 };
 
 // compile program into instruction array instrs,
@@ -933,8 +818,10 @@ const binop_microcode = {
   "<=": (x, y) => x <= y,
   ">=": (x, y) => x >= y,
   ">": (x, y) => x > y,
-  "===": (x, y) => x === y,
-  "!==": (x, y) => x !== y,
+  "==": (x, y) => x === y,
+  "!=": (x, y) => x !== y,
+  "&&": (x, y) => x && y,
+  "||": (x, y) => x || y,
 };
 
 // v2 is popped before v1
@@ -952,7 +839,6 @@ const apply_unop = (op, v) =>
   JS_value_to_address(unop_microcode[op](address_to_JS_value(v)));
 
 const apply_builtin = (builtin_id) => {
-  display(builtin_id, "apply_builtin: builtin_id:");
   const result = builtin_array[builtin_id]();
   OS.pop(); // pop fun
   push(OS, result);
@@ -1054,14 +940,12 @@ const microcode = {
   },
   RESET: (instr) => {
     // keep popping...
-    const top_frame = RTS.pop();
-    if (is_Callframe(top_frame)) {
-      // ...until top frame is a call frame
-      PC = heap_get_Callframe_pc(top_frame);
-      E = heap_get_Callframe_environment(top_frame);
-    } else {
-      PC--;
+    let top_frame = 0;
+    while (!is_Callframe(top_frame)) {
+      top_frame = RTS.pop();
     }
+    E = heap_get_Callframe_environment(top_frame);
+    PC = heap_get_Callframe_pc(top_frame);
   },
 };
 
@@ -1107,20 +991,10 @@ function initialize_machine(heapsize_words) {
 
 function run(heapsize_words) {
   initialize_machine(heapsize_words);
-  //print_code()
-  while (!(instrs[PC].tag === "DONE")) {
-    //heap_display()
-    //display(PC, "PC: ")
-    // display(instrs[PC].tag, "instr: ")
-    //print_OS("\noperands:            ");
-    //print_RTS("\nRTS:            ");
+  while (instrs[PC].tag !== "DONE") {
     const instr = instrs[PC++];
-    //display(instrs[PC].tag, "next instruction: ")
     microcode[instr.tag](instr);
-    // heap_display()
   }
-  //display(OS, "\nfinal operands:           ")
-  //print_OS()
   return address_to_JS_value(peek(OS, 0));
 }
 
@@ -1133,47 +1007,6 @@ const parse_compile_run = (program, heapsize_words) => {
   compile_program(parse_to_json(program));
   return run(heapsize_words);
 };
-
-// debugging
-
-const print_code = () => {
-  for (let i = 0; i < instrs.length; i = i + 1) {
-    const instr = instrs[i];
-    display(
-      "",
-      stringify(i) +
-        ": " +
-        instr.tag +
-        " " +
-        (instr.tag === "GOTO" ? stringify(instr.addr) : "") +
-        (instr.tag === "ENTER_SCOPE" ? stringify(instr.num) : "") +
-        (instr.tag === "LDC" ? stringify(instr.val) : "") +
-        (instr.tag === "ASSIGN" ? stringify(instr.pos) : "") +
-        (instr.tag === "LD" ? stringify(instr.pos) : "") +
-        (instr.tag === "BINOP" ? stringify(instr.sym) : "")
-    );
-  }
-};
-
-const print_RTS = (x) => {
-  display("", x);
-  for (let i = 0; i < RTS.length; i = i + 1) {
-    const f = RTS[i];
-    display("", stringify(i) + ": " + f.tag);
-  }
-};
-
-const print_OS = (x) => {
-  display("", x);
-  for (let i = 0; i < OS.length; i = i + 1) {
-    const val = OS[i];
-    display("", stringify(i) + ": " + address_to_JS_value(val));
-  }
-};
-
-//
-// testing
-//
 
 const test = (program, expected, heapsize) => {
   display(
@@ -1194,158 +1027,11 @@ Test case: ` +
   }
 };
 
-// test cases
-
-test("1;", 1, 310);
-
-test("2 + 3;", 5, 330);
-
-test("1; 2; 3;", 3, 330);
-
-test("true;", true, 300);
-
-test("false ? 2 : 3;", 3, 310);
-
-test(
-  `
-8 + 34; true ? 1 + 2 : 17;
-`,
-  3,
-  360
-);
-
-test("math_PI;", 3.141592653589793, 300);
-
-test("error;", "<builtin>", 300);
-
-test("display;", "<builtin>", 300);
-
-test("display(1);", 1, 310);
-
-test(
-  `
-const y = 4; 
-{
-    const x = y + 7; 
-    x * 2;
+function compile_and_run(obj) {
+  json_code = { NodeType: "BlockStmt", List: obj.Decls };
+  compile_program(json_code);
+  run(580);
+  return OUTPUTS;
 }
-    `,
-  22,
-  380
-);
 
-test(
-  `
-function f() {
-    return 1;
-}
-f();
-`,
-  1,
-  350
-);
-
-test(
-  `
-function f(x) {
-    return x;
-}
-f(33);
-`,
-  33,
-  350
-);
-
-test(
-  `
-function f(x, y) {
-    return x - y;
-}
-f(33, 22);
-`,
-  11,
-  370
-);
-
-test(
-  `
-function g(x, y) {
-    return x - y;
-}
-function f(x, y) {
-    return g(x, y);
-}
-f(33, 22);
-`,
-  11,
-  400
-);
-
-test(
-  `
-function f(x, y) {
-    return x === 1 ? x - y : f(1, x + y);
-}
-f(33, 22);
-`,
-  -54,
-  440
-);
-
-test(
-  `
-function fact(n) {
-    return n === 1 ? 1 : n * fact(n - 1);
-}
-fact(5);
-`,
-  120,
-  650
-);
-
-test(
-  `
-function fact(n) {
-    return fact_iter(n, 1, 1);
-}
-function fact_iter(n, i, acc) {
-    if (i > n) {
-        return acc;
-    } else {
-        return fact_iter(n, i + 1, acc * i);
-    }
-}
-fact(5);
-`,
-  120,
-  640
-);
-
-test(
-  `
-const a1 = 1;
-const a2 = 2;
-const a3 = 3;
-const a4 = 4;
-const a5 = 5;
-const a6 = 6;
-const a7 = 7;
-const a8 = 8;
-const a9 = 9;
-//const a10 = 10; // will indicate limitation
-a1 + a9;
-`,
-  10,
-  400
-);
-
-// modified
-test(
-  `
-1;
-2;
-3;
-`,
-  3,
-  310
-);
+module.exports = compile_and_run;

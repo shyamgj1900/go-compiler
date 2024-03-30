@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import Editor from "@monaco-editor/react"
-import LanguageSelector from "./LanguageSelector";
 import Output from "./Output";
 import { FILES } from "../constants";
 
@@ -8,28 +7,22 @@ import { FILES } from "../constants";
 const CodeEditor = () => {
   
     const codeEditorRef = useRef(null);
-    const [language, setLanguage] = useState("javascript");
+    const [language] = useState("go");
     const file=FILES[language];
 
-    const onMountEditor=(editor,monaco)=> {
+    const onMountEditor=(editor)=> {
       codeEditorRef.current=editor;
     };
-
-    const onSelect= (language)=> {
-      setLanguage(language);
-    };
-    const style ={
-      section:{
-        width: "40%",
-        padding: "5px"
-
-      }
-    }
 
     return (
         <div className="grid gap-2 grid-cols-2"> 
           <div>
-            <LanguageSelector selected={language} onSelect={onSelect} />
+          <div className="bg-cyan-500">
+           
+            <button className="bg-blue-500 p-2">Golang</button>
+            
+          </div>
+            
             <Editor
                 height="92vh"
                 widht="100%"
