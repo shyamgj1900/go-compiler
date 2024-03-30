@@ -4,36 +4,23 @@ Object.entries(require("sicp")).forEach(
   ([name, exported]) => (global[name] = exported)
 );
 
-// ***************************************************
-// Virtual machine with tagged pointers for Source §3-
+// ************************************************************
+// Virtual machine with tagged pointers for a sublanguage of Go
 // set up for mark-and-sweep garbage collection
-// ***************************************************/
+// ************************************************************/
 
-// how to run: Copy this program to your favorite
-// JavaScript development environment. Use
-// ECMAScript 2016 or higher in Node.js.
-// Import the NPM package sicp from
-// https://www.npmjs.com/package/sicp
+// Implement Sleep
+// const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function blockingSleep(ms) {
+  const startTime = new Date().getTime();
+  let currentTime = null;
+  do {
+    currentTime = new Date().getTime();
+  } while (currentTime - startTime < ms);
+}
 
-// for syntax and semantics of Source §4,
-// see https://docs.sourceacademy.org/source_4.pdf
-
-// simplifications:
-//
-// (1) every statement produces a value
-//
-// In this evaluator, all statements produce
-// a value, and declarations produce undefined,
-// whereas JavaScript distinguishes value-producing
-// statements. This makes a difference at the top
-// level, outside of function bodies. For example,
-// in JavaScript, the execution of
-// 1; const x = 2;
-// results in 1, whereas the evaluator gives undefined.
-// For details on this see:
-// https://sourceacademy.org/sicpjs/4.1.2#ex-4.8
-//
-// (2) no loops and arrays
+// Output of program
+OUTPUTS = [];
 
 // **********************
 // using arrays as stacks
@@ -80,9 +67,6 @@ const heap_make = (words) => {
   return view;
 };
 
-// Bottom of the heap is at address 260 to avoid clearing built-in values and constants
-const HEAP_BOTTOM = 260;
-
 // for convenience, HEAP is global variable
 // initialized in initialize_machine()
 let HEAP;
@@ -110,26 +94,21 @@ const heap_display = (s) => {
 //  2 bytes #children, 1 byte unused]
 // Note: payload depends on the type of node
 const size_offset = 5;
-const mark_offset = 7;
 
 const node_size = 10;
 
-const heap_allocate = (tag, size, frame_address = Null) => {
+const heap_allocate = (tag, size) => {
   if (size > node_size) {
     error("limitation: nodes cannot be larger than 10 words");
   }
   // a value of -1 in free indicates the
   // end of the free list
   if (free === -1) {
-    display("DOING GC");
-    markAllLiveNodes(frame_address);
-    sweep();
-    flip_built_in_tag();
+    display("GARBAGE COLLECTION");
+    mark_sweep();
   }
-  if (free === -1) {
-    // If free is still -1, we are out of memory
-    error("Out of memory");
-  }
+
+  // allocate
   const address = free;
   free = heap_get(free);
   HEAP.setInt8(address * word_size, tag);
@@ -137,80 +116,67 @@ const heap_allocate = (tag, size, frame_address = Null) => {
   return address;
 };
 
-function markObject(address) {
-  if (address < 0 || address >= heap_size) {
+const mark_bit = 7;
+
+const UNMARKED = 0;
+const MARKED = 1;
+
+let HEAP_BOTTOM;
+let ALLOCATING;
+
+const mark_sweep = () => {
+  // mark r for r in roots
+  const roots = [...OS, E, ...RTS, ...ALLOCATING];
+  for (let i = 0; i < roots.length; i++) {
+    mark(roots[i]);
+  }
+
+  sweep();
+
+  if (free === -1) {
+    error("heap memory exhausted");
+    // or error("out of memory")
+  }
+};
+
+const mark = (node) => {
+  if (node >= heap_size) {
     return;
   }
-  const mark_bit = heap_get_mark_bit(address);
-  if (mark_bit === 1) {
-    // Object is already marked
-    return;
+
+  if (is_unmarked(node)) {
+    heap_set_byte_at_offset(node, mark_bit, MARKED);
+
+    const num_of_children = heap_get_number_of_children(node);
+
+    for (let i = 0; i < num_of_children; i++) {
+      mark(heap_get_child(node, i));
+    }
   }
-  const numberOfChildren = heap_get_number_of_children(address);
+};
 
-  // Mark the object as live
-  heap_set_mark_bit(address, 1);
+const sweep = () => {
+  let v = HEAP_BOTTOM;
 
-  for (let i = 0; i < numberOfChildren; i++) {
-    const childAddress = heap_get_child(address, i);
-    markObject(childAddress);
-  }
-}
-
-function markFromEnvironment(env) {
-  if (env < 0 || env >= heap_size) return;
-  markObject(env);
-}
-
-function markFromRTS(rts) {
-  rts.forEach((frameAddress) => {
-    markObject(frameAddress);
-  });
-}
-
-function markFromOS(os) {
-  os.forEach((valueAddress) => {
-    markObject(valueAddress);
-  });
-}
-
-function sweep() {
-  let currentAddress = HEAP_BOTTOM;
-  while (currentAddress <= heap_size - node_size) {
-    const mark_bit = heap_get_mark_bit(currentAddress);
-    if (mark_bit === 1) {
-      heap_set_mark_bit(currentAddress, 0);
+  while (v < heap_size) {
+    if (is_unmarked(v)) {
+      free_node(v);
     } else {
-      heap_set(currentAddress, free);
-      free = currentAddress;
+      heap_set_byte_at_offset(v, mark_bit, UNMARKED);
     }
-    currentAddress += node_size;
+
+    v = v + node_size;
   }
-}
+};
 
-function flip_built_in_tag() {
-  let currentAddress = 0;
+const is_unmarked = (node) =>
+  heap_get_byte_at_offset(node, mark_bit) === UNMARKED;
 
-  while (currentAddress < HEAP_BOTTOM) {
-    const mark_bit = heap_get_mark_bit(currentAddress);
-    if (mark_bit === 1) {
-      heap_set_mark_bit(currentAddress, 0);
-    }
-    currentAddress += node_size;
-  }
-}
-
-// Adjust heap_set_tag and heap_set_forwarding_address as necessary for your VM
-
-// Main function to mark all live objects
-function markAllLiveNodes(frame_address = Null) {
-  markFromEnvironment(E);
-  markFromRTS(RTS);
-  markFromOS(OS);
-  if (frame_address !== Null) {
-    markObject(frame_address);
-  }
-}
+const free_node = (node) => {
+  // heap set is used for retrieving the next free node
+  heap_set(node, free);
+  free = node;
+};
 
 const heap_already_copied = (node) =>
   heap_get_forwarding_address(node) >= to_space &&
@@ -284,11 +250,6 @@ const word_to_string = (word) => {
 // word of the node is a header, and the first byte of the
 // header is a tag that identifies the type of node
 
-// a little trick: tags are all negative so that we can use
-// the first 4 bytes of the header as forwarding address
-// in garbage collection: If the (signed) Int32 is
-// non-negative, the node has been forwarded already.
-
 const False_tag = 0;
 const True_tag = 1;
 const Number_tag = 2;
@@ -359,7 +320,9 @@ const heap_get_Builtin_id = (address) => heap_get_byte_at_offset(address, 1);
 //   they could be used to increase pc and #children range
 
 const heap_allocate_Closure = (arity, pc, env) => {
+  ALLOCATING = [env];
   const address = heap_allocate(Closure_tag, 2);
+  ALLOCATING = [];
   heap_set_byte_at_offset(address, 1, arity);
   heap_set_2_bytes_at_offset(address, 2, pc);
   heap_set(address + 1, env);
@@ -379,8 +342,10 @@ const is_Closure = (address) => heap_get_tag(address) === Closure_tag;
 //  2 bytes #children, 1 byte unused]
 
 const heap_allocate_Blockframe = (env) => {
+  ALLOCATING = [env];
   const address = heap_allocate(Blockframe_tag, 2);
   heap_set(address + 1, env);
+  ALLOCATING = [];
   return address;
 };
 
@@ -394,7 +359,9 @@ const is_Blockframe = (address) => heap_get_tag(address) === Blockframe_tag;
 // followed by the address of env
 
 const heap_allocate_Callframe = (env, pc) => {
+  ALLOCATING = [env];
   const address = heap_allocate(Callframe_tag, 2);
+  ALLOCATING = [];
   heap_set_2_bytes_at_offset(address, 2, pc);
   heap_set(address + 1, env);
   return address;
@@ -459,10 +426,10 @@ const heap_set_Environment_value = (env_address, position, value) => {
 // of the new environment
 const heap_Environment_extend = (frame_address, env_address, frame_alloc) => {
   const old_size = heap_get_size(env_address);
-  // to check if a frame is allocated before environment has been extended
-  const new_env_address = frame_alloc
-    ? heap_allocate_Environment(old_size, frame_address)
-    : heap_allocate_Environment(old_size);
+  // modified: should not free frame address and env address here
+  ALLOCATING = [frame_address, env_address];
+  const new_env_address = heap_allocate_Environment(old_size);
+  ALLOCATING = [];
   let i;
   for (i = 0; i < old_size - 1; i++) {
     heap_set_child(new_env_address, i, heap_get_child(env_address, i));
@@ -587,28 +554,15 @@ const builtin_implementation = {
   println: () => {
     const address = OS.pop();
     display(address_to_JS_value(address));
+    OUTPUTS.push(String(address_to_JS_value(address)));
     return address;
   },
+  sleep: () => {
+    const time = OS.pop();
+    blockingSleep(address_to_JS_value(time));
+  },
   error: () => error(address_to_JS_value(OS.pop())),
-  pair: () => {
-    const tl = OS.pop();
-    const hd = OS.pop();
-    return heap_allocate_Pair(hd, tl);
-  },
-  is_pair: () => (is_Pair(OS.pop()) ? True : False),
-  head: () => heap_get_child(OS.pop(), 0),
-  tail: () => heap_get_child(OS.pop(), 1),
   is_null: () => (is_Null(OS.pop()) ? True : False),
-  set_head: () => {
-    const val = OS.pop();
-    const p = OS.pop();
-    heap_set_child(p, 0, val);
-  },
-  set_tail: () => {
-    const val = OS.pop();
-    const p = OS.pop();
-    heap_set_child(p, 1, val);
-  },
 };
 
 const builtins = {};
@@ -936,10 +890,7 @@ const microcode = {
   ENTER_SCOPE: (instr) => {
     push(RTS, heap_allocate_Blockframe(E));
     const frame_address = heap_allocate_Frame(instr.num);
-    E =
-      free == -1
-        ? heap_Environment_extend(frame_address, E, true)
-        : heap_Environment_extend(frame_address, E, false);
+    E = heap_Environment_extend(frame_address, E);
     for (let i = 0; i < instr.num; i++) {
       heap_set_child(frame_address, i, Unassigned);
     }
@@ -962,24 +913,13 @@ const microcode = {
       return apply_builtin(heap_get_Builtin_id(fun));
     }
     const new_PC = heap_get_Closure_pc(fun);
-    push(RTS, heap_allocate_Callframe(E, PC));
     const new_frame = heap_allocate_Frame(arity);
     for (let i = arity - 1; i >= 0; i--) {
       heap_set_child(new_frame, i, OS.pop());
     }
+    push(RTS, heap_allocate_Callframe(E, PC));
     OS.pop(); // pop fun
-    E =
-      free == -1
-        ? heap_Environment_extend(
-            new_frame,
-            heap_get_Closure_environment(fun),
-            true
-          )
-        : heap_Environment_extend(
-            new_frame,
-            heap_get_Closure_environment(fun),
-            false
-          );
+    E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun));
     PC = new_PC;
   },
   TAIL_CALL: (instr) => {
@@ -995,18 +935,7 @@ const microcode = {
     }
     OS.pop(); // pop fun
     // don't push on RTS here
-    E =
-      free == -1
-        ? heap_Environment_extend(
-            new_frame,
-            heap_get_Closure_environment(fun),
-            true
-          )
-        : heap_Environment_extend(
-            new_frame,
-            heap_get_Closure_environment(fun),
-            false
-          );
+    E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun));
     PC = new_PC;
   },
   RESET: (instr) => {
@@ -1027,6 +956,10 @@ function initialize_machine(heapsize_words) {
   OS = [];
   PC = 0;
   RTS = [];
+  // modified
+  ALLOCATING = [];
+  HEAP_BOTTOM = undefined; // the initial bottom is unknown
+
   HEAP = heap_make(heapsize_words);
   heap_size = heapsize_words;
   // initialize free list:
@@ -1041,11 +974,19 @@ function initialize_machine(heapsize_words) {
   free = 0;
   PC = 0;
   allocate_literal_values();
+  // display(free)
   const builtins_frame = allocate_builtin_frame();
+  // display(free)
   const constants_frame = allocate_constant_frame();
+  // display(free)
   E = heap_allocate_Environment(0);
+  // display(free)
   E = heap_Environment_extend(builtins_frame, E);
+  // display(free)
   E = heap_Environment_extend(constants_frame, E);
+  // display(free)
+  // modified
+  HEAP_BOTTOM = free;
 }
 
 function run(heapsize_words) {
@@ -1086,185 +1027,11 @@ Test case: ` +
   }
 };
 
-let obj = {};
-const fs = require("fs");
-
-// Assuming example.json is in the same directory as our script
-fs.readFile("code.json", "utf8", (err, data) => {
-  if (err) {
-    console.error(err);
-    return;
-  }
-  obj = JSON.parse(data); // Convert string from file into JavaScript object
+function compile_and_run(obj) {
   json_code = { NodeType: "BlockStmt", List: obj.Decls };
   compile_program(json_code);
-  // run(580);
-  run(3000);
-});
+  run(580);
+  return OUTPUTS;
+}
 
-// obj = {
-//   NodeType: "File",
-//   Doc: null,
-//   Package: null,
-//   Name: { NodeType: "Ident", Name: "main" },
-//   Decls: [
-//     {
-//       NodeType: "FuncDecl",
-//       Recv: null,
-//       Name: { NodeType: "Ident", Name: "Factorial" },
-//       Type: {
-//         NodeType: "FuncType",
-//         TypeParams: null,
-//         Params: {
-//           NodeType: "FieldList",
-//           List: [
-//             {
-//               NodeType: "Field",
-//               Names: [{ NodeType: "Ident", Name: "n" }],
-//               Type: { NodeType: "Ident", Name: "int" },
-//             },
-//           ],
-//         },
-//         Results: {
-//           NodeType: "FieldList",
-//           List: [
-//             {
-//               NodeType: "Field",
-//               Names: null,
-//               Type: { NodeType: "Ident", Name: "int" },
-//             },
-//           ],
-//         },
-//       },
-//       Body: {
-//         NodeType: "BlockStmt",
-//         List: [
-//           {
-//             NodeType: "IfStmt",
-//             Init: null,
-//             Cond: {
-//               NodeType: "BinaryExpr",
-//               X: {
-//                 NodeType: "BinaryExpr",
-//                 X: { NodeType: "Ident", Name: "n" },
-//                 Op: "==",
-//                 Y: { NodeType: "BasicLit", Kind: "INT", Value: "0" },
-//               },
-//               Op: "||",
-//               Y: {
-//                 NodeType: "BinaryExpr",
-//                 X: { NodeType: "Ident", Name: "n" },
-//                 Op: "==",
-//                 Y: { NodeType: "BasicLit", Kind: "INT", Value: "1" },
-//               },
-//             },
-//             Body: {
-//               NodeType: "BlockStmt",
-//               List: [
-//                 {
-//                   NodeType: "ReturnStmt",
-//                   Results: [{ NodeType: "BasicLit", Kind: "INT", Value: "1" }],
-//                 },
-//               ],
-//             },
-//             Else: null,
-//           },
-//           {
-//             NodeType: "ReturnStmt",
-//             Results: [
-//               {
-//                 NodeType: "BinaryExpr",
-//                 X: { NodeType: "Ident", Name: "n" },
-//                 Op: "*",
-//                 Y: {
-//                   NodeType: "CallExpr",
-//                   Fun: { NodeType: "Ident", Name: "Factorial" },
-//                   Args: [
-//                     {
-//                       NodeType: "BinaryExpr",
-//                       X: { NodeType: "Ident", Name: "n" },
-//                       Op: "-",
-//                       Y: {
-//                         NodeType: "BasicLit",
-//                         Kind: "INT",
-//                         Value: "1",
-//                       },
-//                     },
-//                   ],
-//                 },
-//               },
-//             ],
-//           },
-//         ],
-//       },
-//     },
-//     {
-//       NodeType: "FuncDecl",
-//       Recv: null,
-//       Name: { NodeType: "Ident", Name: "main" },
-//       Type: {
-//         NodeType: "FuncType",
-//         TypeParams: null,
-//         Params: { NodeType: "FieldList", List: null },
-//         Results: null,
-//       },
-//       Body: {
-//         NodeType: "BlockStmt",
-//         List: [
-//           {
-//             NodeType: "DeclStmt",
-//             Decl: {
-//               NodeType: "GenDecl",
-//               Tok: "var",
-//               Specs: [
-//                 {
-//                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "fact" }],
-//                   Type: null,
-//                   Values: [
-//                     {
-//                       NodeType: "CallExpr",
-//                       Fun: { NodeType: "Ident", Name: "Factorial" },
-//                       Args: [{ NodeType: "BasicLit", Kind: "INT", Value: "3" }],
-//                     },
-//                   ],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "ExprStmt",
-//             X: {
-//               NodeType: "CallExpr",
-//               Fun: { NodeType: "Ident", Name: "println" },
-//               Args: [{ NodeType: "Ident", Name: "fact" }],
-//             },
-//           },
-//         ],
-//       },
-//     },
-//   ],
-//   Imports: null,
-//   Unresolved: null,
-//   Comments: null,
-//   FileSet: {
-//     Base: 349,
-//     Files: [
-//       {
-//         Name: "code.go",
-//         Base: 1,
-//         Size: 347,
-//         Lines: [
-//           0, 13, 14, 96, 124, 175, 198, 209, 212, 242, 244, 245, 259, 304, 305,
-//           330, 345,
-//         ],
-//         Infos: null,
-//       },
-//     ],
-//   },
-// };
-
-// json_code = { NodeType: "BlockStmt", List: obj.Decls };
-// compile_program(json_code);
-// // run(580);
-// run(3000);
+module.exports = compile_and_run;

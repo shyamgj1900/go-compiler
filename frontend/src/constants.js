@@ -13,7 +13,7 @@ export const FILES={
     },
     "go":{
       name: "golang.go",
-      language: "glang",
+      language: "go",
       version:"1.22.1",
       default:""
     },

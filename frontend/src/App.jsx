@@ -8,7 +8,7 @@ import './App.css'
 function App() {
   
   return (
-   <div className="container mx-auto m-2">
+   <div className="m-2">
       <CodeEditor />
    </div>
   )
