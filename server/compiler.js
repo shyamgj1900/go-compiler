@@ -121,6 +121,8 @@ const mark_bit = 7;
 const UNMARKED = 0;
 const MARKED = 1;
 
+const HEAP_SIZE = 3000;
+
 let HEAP_BOTTOM;
 let ALLOCATING;
 
@@ -1030,7 +1032,7 @@ Test case: ` +
 function compile_and_run(obj) {
   json_code = { NodeType: "BlockStmt", List: obj.Decls };
   compile_program(json_code);
-  run(580);
+  run(HEAP_SIZE);
   return OUTPUTS;
 }
 
