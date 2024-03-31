@@ -680,7 +680,9 @@ const compile_comp = {
     instrs[wc++] = goto_instruction;
     const alternative_address = wc;
     jump_on_false_instruction.addr = alternative_address;
-    compile(comp.Else, ce);
+    if (comp.Else !== null) {
+      compile(comp.Else, ce);
+    }
     goto_instruction.addr = wc;
   },
   ForStmt: (comp, ce) => {
@@ -1131,7 +1133,7 @@ function compile_and_run(obj) {
   };
   obj.Decls.push(main_call);
   json_code = { NodeType: "BlockStmt", List: obj.Decls };
-  console.log(json_code);
+  // console.log(json_code);
   compile_program(json_code);
   run(50000);
   return OUTPUTS;
