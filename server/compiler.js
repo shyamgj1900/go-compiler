@@ -814,11 +814,27 @@ const compile_comp = {
     }    
   },
   GenDecl: (comp, ce) => {
-    compile(comp.Specs[0].Values[0], ce);
-    instrs[wc++] = {
-      tag: "ASSIGN",
-      pos: compile_time_environment_position(ce, comp.Specs[0].Names[0].Name),
-    };
+    if (comp.Specs[0].Values !== null){
+      compile(comp.Specs[0].Values[0], ce);
+      instrs[wc++] = {
+        tag: "ASSIGN",
+        pos: compile_time_environment_position(ce, comp.Specs[0].Names[0].Name),
+      };
+    } else if (comp.Specs[0].Type.NodeType === "SelectorExpr"){
+      if(comp.Decl.Specs[0].Type.Sel.Name === "Mutex"){
+          compile({
+          NodeType: "AssignStmt",
+          Lhs: [comp.Specs[0].Names.Name],
+          Rhs: [{
+            NodeType: "Ident",
+            Name: "false"
+          }]
+        })
+      }
+
+    }
+
+  
   },
   AssignStmt: (comp, ce) => {
     compile(comp.Rhs[0], ce);
