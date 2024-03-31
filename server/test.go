@@ -1,33 +1,32 @@
 package main
 
-import (
-	"fmt"
-	"time"
-)
+var x int = 2
 
-var x = ""
-
-func f(from string) {
-	for i := 0; i < 20; i++ {
-		time.Sleep(200 * time.Millisecond)
-		x = from
-		fmt.Println(from, ":", x)
+func f() {
+    var i int = 0
+	for i < 20 {
+		x = 0
+		println(x)
+        i = i + 1
 	}
 }
 
-func g(from string) {
-	for i := 0; i < 20; i++ {
-		x = from
-		time.Sleep(100 * time.Millisecond)
-		fmt.Println(from, ":", x)
+func g() {
+	var i int = 0
+    for i < 20 {
+		x = 1
+		println(x)
+        i = i + 1
 	}
 }
 
 func main() {
+    var y int = 0
+	go g()
+	go f()
 
-	g("goroutine2")
-	f("goroutine")
-
-	time.Sleep(time.Second)
-	fmt.Println("done")
+	for y < 100 {
+        y = y + 1
+    }
+	println(25)
 }

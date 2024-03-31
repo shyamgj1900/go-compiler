@@ -618,6 +618,9 @@ function scan_for_locals(statements) {
       case "DeclStmt":
         locals.push(statement.Decl.Specs[0].Names[0].Name);
         break;
+      case "GenDecl":
+        locals.push(statement.Specs[0].Names[0].Name);
+        break;
       case "FuncDecl":
         locals.push(statement.Name.Name);
         break;
@@ -708,12 +711,12 @@ const compile_comp = {
   ParenExpr: (comp, ce) => {
     compile(comp.X, ce);
   },
-  GoStmt: (comp, ce) =>{
+  GoStmt: (comp, ce) => {
     comp.Call.NodeType = "GoCallExpr";
     compile(comp.Call, ce);
     instrs[wc++] = { tag: "ENDGO" };
   },
-  GoCallExpr: (comp,ce) =>{
+  GoCallExpr: (comp, ce) => {
     compile(comp.Fun, ce);
     if (comp.Args !== null) {
       for (let arg of comp.Args) {
@@ -729,12 +732,8 @@ const compile_comp = {
     let arity = comp.Params.List !== null ? comp.Params.List.length : 0;
     // jump over the body of the lambda expression
     const goto_instruction = { tag: "GOTO" };
-    if (comp.Name !== "main") {
-      instrs[wc++] = { tag: "LDF", arity: arity, addr: wc + 1, name: "other" };
-      instrs[wc++] = goto_instruction;
-    } else {
-      instrs[wc++] = { tag: "LDF", arity: arity, addr: wc, name: "main" };
-    }
+    instrs[wc++] = { tag: "LDF", arity: arity, addr: wc + 1 };
+    instrs[wc++] = goto_instruction;
     if (arity > 0) {
       for (let prm of comp.Params.List) {
         prms.push(prm.Names[0].Name);
@@ -765,6 +764,13 @@ const compile_comp = {
         ce,
         comp.Decl.Specs[0].Names[0].Name
       ),
+    };
+  },
+  GenDecl: (comp, ce) => {
+    compile(comp.Specs[0].Values[0], ce);
+    instrs[wc++] = {
+      tag: "ASSIGN",
+      pos: compile_time_environment_position(ce, comp.Specs[0].Names[0].Name),
     };
   },
   AssignStmt: (comp, ce) => {
@@ -847,7 +853,7 @@ const apply_binop = (op, v2, v1) =>
   );
 
 const unop_microcode = {
-  "-unary": (x) => -x,
+  "-": (x) => -x,
   "!": (x) => !x,
 };
 
@@ -929,7 +935,7 @@ const microcode = {
     push(OS, closure_address);
   },
   ENDGO: (instr) => {
-    if (OS_Q.length != 0){
+    if (OS_Q.length != 0) {
       OS = OS_Q.shift();
       PC = PC_Q.shift();
       RTS = RTS_Q.shift();
@@ -955,10 +961,14 @@ const microcode = {
     push(new_thread_RTS, heap_allocate_Callframe(E, PC));
     RTS_Q.push(new_thread_RTS);
     // push(RTS, heap_allocate_Callframe(E, PC));
-    
-    new_E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun));
+
+    new_E = heap_Environment_extend(
+      new_frame,
+      heap_get_Closure_environment(fun)
+    );
     E_Q.push(new_E);
     PC_Q.push(new_PC);
+    PC += 1;
     // PC = new_PC;
   },
   CALL: (instr) => {
@@ -1059,10 +1069,10 @@ function initialize_machine(heapsize_words) {
 function run(heapsize_words) {
   initialize_machine(heapsize_words);
 
-  let switch_freq = 5 //context switch every x instrs
-  let i = 0
+  let switch_freq = 10; //context switch every x instrs
+  let i = 0;
   while (instrs[PC].tag !== "DONE") {
-    if (i % switch_freq == 0){
+    if (i % switch_freq == 0) {
       OS = OS_Q.shift();
       PC = PC_Q.shift();
       RTS = RTS_Q.shift();
@@ -1074,13 +1084,12 @@ function run(heapsize_words) {
     const instr = instrs[PC++];
     microcode[instr.tag](instr);
 
-    if (instr != "ENDGO" && i % switch_freq == 0){
+    if (instr != "ENDGO" && i % switch_freq == 0) {
       OS_Q.push(OS);
       PC_Q.push(PC);
       RTS_Q.push(RTS);
       E_Q.push(E);
     }
-
   }
   // return address_to_JS_value(peek(OS, 0));
 }
@@ -1115,9 +1124,16 @@ Test case: ` +
 };
 
 function compile_and_run(obj) {
+  main_call = {
+    NodeType: "CallExpr",
+    Fun: { NodeType: "Ident", Name: "main" },
+    Args: [],
+  };
+  obj.Decls.push(main_call);
   json_code = { NodeType: "BlockStmt", List: obj.Decls };
+  console.log(json_code);
   compile_program(json_code);
-  run(580);
+  run(50000);
   return OUTPUTS;
 }
 
