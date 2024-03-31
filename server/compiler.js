@@ -563,6 +563,33 @@ const builtin_implementation = {
   },
   error: () => error(address_to_JS_value(OS.pop())),
   is_null: () => (is_Null(OS.pop()) ? True : False),
+  Lock: () => {
+    const state = OS.pop()
+    if (address_to_JS_value(state)){
+
+      OS_Q.push(OS);
+      PC_Q.push(PC-1);
+      RTS_Q.push(RTS);
+      E_Q.push(E);
+
+      OS = OS_Q.shift();
+      PC = PC_Q.shift();
+      RTS = RTS_Q.shift();
+      E = E_Q.shift();
+
+    } else{
+      heap_set(state, 10)
+    }
+  
+  },
+  Unlock: () => {
+    const state = OS.pop()
+    if (address_to_JS_value(state)){
+      heap_set(state, 0)
+    } else{
+      error("Mutex already unlocked")
+    }
+  },
 };
 
 const builtins = {};
@@ -713,6 +740,10 @@ const compile_comp = {
   ParenExpr: (comp, ce) => {
     compile(comp.X, ce);
   },
+  SelectorExpr: (comp, ce) => {
+    compile(comp.X)
+    compile({NodeType: "CallExpr", Fun: comp.Sel, Args: null})
+  },
   GoStmt: (comp, ce) => {
     comp.Call.NodeType = "GoCallExpr";
     compile(comp.Call, ce);
@@ -759,14 +790,28 @@ const compile_comp = {
     instrs[wc++] = { tag: "EXIT_SCOPE" };
   },
   DeclStmt: (comp, ce) => {
-    compile(comp.Decl.Specs[0].Values[0], ce);
-    instrs[wc++] = {
-      tag: "ASSIGN",
-      pos: compile_time_environment_position(
-        ce,
-        comp.Decl.Specs[0].Names[0].Name
-      ),
-    };
+    if (comp.Decl.Specs[0].Values !== null){
+      compile(comp.Decl.Specs[0].Values[0], ce);
+      instrs[wc++] = {
+        tag: "ASSIGN",
+        pos: compile_time_environment_position(
+          ce,
+          comp.Decl.Specs[0].Names[0].Name
+        ),
+      };
+    } else if (comp.Decl.Specs[0].Type.NodeType === "SelectorExpr"){
+      if(comp.Decl.Specs[0].Type.Sel.Name === "Mutex"){
+        compile({
+          NodeType: "AssignStmt",
+          Lhs: [comp.Decl.Specs[0].Names.Name],
+          Rhs: [{
+            NodeType: "Ident",
+            Name: "false"
+          }]
+        })
+      }
+
+    }    
   },
   GenDecl: (comp, ce) => {
     compile(comp.Specs[0].Values[0], ce);
