@@ -564,30 +564,33 @@ const builtin_implementation = {
   error: () => error(address_to_JS_value(OS.pop())),
   is_null: () => (is_Null(OS.pop()) ? True : False),
   Lock: () => {
-    const state = OS.pop()
-    if (address_to_JS_value(state)){
+    const state = OS.pop();
+    display(typeof address_to_JS_value(state));
+    if (address_to_JS_value(state)) {
+      // OS_Q.push(OS);
+      // PC_Q.push(PC - 1);
+      // RTS_Q.push(RTS);
+      // E_Q.push(E);
 
-      OS_Q.push(OS);
-      PC_Q.push(PC-1);
-      RTS_Q.push(RTS);
-      E_Q.push(E);
-
-      OS = OS_Q.shift();
-      PC = PC_Q.shift();
-      RTS = RTS_Q.shift();
-      E = E_Q.shift();
-
-    } else{
-      heap_set(state, 10)
+      // OS = OS_Q.shift();
+      // PC = PC_Q.shift();
+      // RTS = RTS_Q.shift();
+      // E = E_Q.shift();
+      display("Locking Mutex");
+    } else {
+      // heap_set(state, 10);
+      display("Mutex already locked");
     }
-  
   },
   Unlock: () => {
-    const state = OS.pop()
-    if (address_to_JS_value(state)){
-      heap_set(state, 0)
-    } else{
-      error("Mutex already unlocked")
+    const state = OS.pop();
+    display(typeof address_to_JS_value(state));
+    if (address_to_JS_value(state)) {
+      // heap_set(state, 0);
+      display("Unlocking Mutex");
+    } else {
+      display("Mutex already unlocked");
+      // error("Mutex already unlocked");
     }
   },
 };
@@ -741,8 +744,8 @@ const compile_comp = {
     compile(comp.X, ce);
   },
   SelectorExpr: (comp, ce) => {
-    compile(comp.X)
-    compile({NodeType: "CallExpr", Fun: comp.Sel, Args: null})
+    compile(comp.X, ce);
+    compile({ NodeType: "CallExpr", Fun: comp.Sel, Args: null }, ce);
   },
   GoStmt: (comp, ce) => {
     comp.Call.NodeType = "GoCallExpr";
@@ -790,7 +793,7 @@ const compile_comp = {
     instrs[wc++] = { tag: "EXIT_SCOPE" };
   },
   DeclStmt: (comp, ce) => {
-    if (comp.Decl.Specs[0].Values !== null){
+    if (comp.Decl.Specs[0].Values !== null) {
       compile(comp.Decl.Specs[0].Values[0], ce);
       instrs[wc++] = {
         tag: "ASSIGN",
@@ -799,42 +802,48 @@ const compile_comp = {
           comp.Decl.Specs[0].Names[0].Name
         ),
       };
-    } else if (comp.Decl.Specs[0].Type.NodeType === "SelectorExpr"){
-      if(comp.Decl.Specs[0].Type.Sel.Name === "Mutex"){
-        compile({
-          NodeType: "AssignStmt",
-          Lhs: [comp.Decl.Specs[0].Names.Name],
-          Rhs: [{
-            NodeType: "Ident",
-            Name: "false"
-          }]
-        })
+    } else if (comp.Decl.Specs[0].Type.NodeType === "SelectorExpr") {
+      if (comp.Decl.Specs[0].Type.Sel.Name === "Mutex") {
+        compile(
+          {
+            NodeType: "AssignStmt",
+            Lhs: [comp.Decl.Specs[0].Names[0]],
+            Rhs: [
+              {
+                NodeType: "Ident",
+                Name: "false",
+              },
+            ],
+          },
+          ce
+        );
       }
-
-    }    
+    }
   },
   GenDecl: (comp, ce) => {
-    if (comp.Specs[0].Values !== null){
+    if (comp.Specs[0].Values !== null) {
       compile(comp.Specs[0].Values[0], ce);
       instrs[wc++] = {
         tag: "ASSIGN",
         pos: compile_time_environment_position(ce, comp.Specs[0].Names[0].Name),
       };
-    } else if (comp.Specs[0].Type.NodeType === "SelectorExpr"){
-      if(comp.Decl.Specs[0].Type.Sel.Name === "Mutex"){
-          compile({
-          NodeType: "AssignStmt",
-          Lhs: [comp.Specs[0].Names.Name],
-          Rhs: [{
-            NodeType: "Ident",
-            Name: "false"
-          }]
-        })
+    } else if (comp.Specs[0].Type.NodeType === "SelectorExpr") {
+      if (comp.Specs[0].Type.Sel.Name === "Mutex") {
+        compile(
+          {
+            NodeType: "AssignStmt",
+            Lhs: [comp.Specs[0].Names[0]],
+            Rhs: [
+              {
+                NodeType: "Ident",
+                Name: "false",
+              },
+            ],
+          },
+          ce
+        );
       }
-
     }
-
-  
   },
   AssignStmt: (comp, ce) => {
     compile(comp.Rhs[0], ce);
@@ -989,6 +998,7 @@ const microcode = {
   EXIT_SCOPE: (instr) => (E = heap_get_Blockframe_environment(RTS.pop())),
   LD: (instr) => {
     const val = heap_get_Environment_value(E, instr.pos);
+    console.log(address_to_JS_value(val) + " " + instr.pos);
     if (is_Unassigned(val)) error("access of unassigned variable");
     push(OS, val);
   },
