@@ -708,6 +708,22 @@ const compile_comp = {
   ParenExpr: (comp, ce) => {
     compile(comp.X, ce);
   },
+  GoStmt: (comp, ce) =>{
+    comp.Call.NodeType = "GoCallExpr";
+    compile(comp.Call, ce);
+    instrs[wc++] = { tag: "ENDGO" };
+  },
+  GoCallExpr: (comp,ce) =>{
+    compile(comp.Fun, ce);
+    if (comp.Args !== null) {
+      for (let arg of comp.Args) {
+        compile(arg, ce);
+      }
+      instrs[wc++] = { tag: "GOCALL", arity: comp.Args.length };
+    } else {
+      instrs[wc++] = { tag: "GOCALL", arity: 0 };
+    }
+  },
   FuncProc: (comp, ce) => {
     let prms = [];
     let arity = comp.Params.List !== null ? comp.Params.List.length : 0;
@@ -726,8 +742,8 @@ const compile_comp = {
     }
     // extend compile-time environment
     compile(comp.Body, compile_time_environment_extend(prms, ce));
-    // instrs[wc++] = { tag: "LDC", val: undefined };
-    // instrs[wc++] = { tag: "RESET" };
+    instrs[wc++] = { tag: "LDC", val: undefined };
+    instrs[wc++] = { tag: "RESET" };
     goto_instruction.addr = wc;
   },
   List: (comp, ce) => compile_sequence(comp, ce),
@@ -878,6 +894,12 @@ let OS; // JS array (stack) of words (Addresses,
 let PC; // JS number
 let E; // heap Address
 let RTS; // JS array (stack) of Addresses
+
+let OS_Q;
+let PC_Q;
+let RTS_Q;
+let E_Q;
+
 HEAP; // (declared above already)
 
 const microcode = {
@@ -905,6 +927,39 @@ const microcode = {
   LDF: (instr) => {
     const closure_address = heap_allocate_Closure(instr.arity, instr.addr, E);
     push(OS, closure_address);
+  },
+  ENDGO: (instr) => {
+    if (OS_Q.length != 0){
+      OS = OS_Q.shift();
+      PC = PC_Q.shift();
+      RTS = RTS_Q.shift();
+      E = E_Q.shift();
+    }
+  },
+  GOCALL: (instr) => {
+    const arity = instr.arity;
+    const fun = peek(OS, arity);
+    if (is_Builtin(fun)) {
+      return apply_builtin(heap_get_Builtin_id(fun));
+    }
+    const new_PC = heap_get_Closure_pc(fun);
+    const new_frame = heap_allocate_Frame(arity);
+    for (let i = arity - 1; i >= 0; i--) {
+      heap_set_child(new_frame, i, OS.pop());
+    }
+    OS.pop(); // pop fun
+
+    new_thread_OS = [];
+    OS_Q.push(new_thread_OS);
+    new_thread_RTS = [];
+    push(new_thread_RTS, heap_allocate_Callframe(E, PC));
+    RTS_Q.push(new_thread_RTS);
+    // push(RTS, heap_allocate_Callframe(E, PC));
+    
+    new_E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun));
+    E_Q.push(new_E);
+    PC_Q.push(new_PC);
+    // PC = new_PC;
   },
   CALL: (instr) => {
     const arity = instr.arity;
@@ -953,9 +1008,15 @@ const microcode = {
 
 // set up registers, including free list
 function initialize_machine(heapsize_words) {
+  OS_Q = [];
+  PC_Q = [];
+  RTS_Q = [];
+  E_Q = [];
+
   OS = [];
   PC = 0;
   RTS = [];
+
   // modified
   ALLOCATING = [];
   HEAP_BOTTOM = undefined; // the initial bottom is unknown
@@ -972,7 +1033,7 @@ function initialize_machine(heapsize_words) {
   // the empty free list is represented by -1
   heap_set(i - node_size, -1);
   free = 0;
-  PC = 0;
+  // PC = 0;
   allocate_literal_values();
   // display(free)
   const builtins_frame = allocate_builtin_frame();
@@ -986,16 +1047,42 @@ function initialize_machine(heapsize_words) {
   E = heap_Environment_extend(constants_frame, E);
   // display(free)
   // modified
+
+  OS_Q.push(OS);
+  PC_Q.push(PC);
+  RTS_Q.push(RTS);
+  E_Q.push(E);
+
   HEAP_BOTTOM = free;
 }
 
 function run(heapsize_words) {
   initialize_machine(heapsize_words);
+
+  let switch_freq = 5 //context switch every x instrs
+  let i = 0
   while (instrs[PC].tag !== "DONE") {
+    if (i % switch_freq == 0){
+      OS = OS_Q.shift();
+      PC = PC_Q.shift();
+      RTS = RTS_Q.shift();
+      E = E_Q.shift();
+    }
+
+    i += 1;
+
     const instr = instrs[PC++];
     microcode[instr.tag](instr);
+
+    if (instr != "ENDGO" && i % switch_freq == 0){
+      OS_Q.push(OS);
+      PC_Q.push(PC);
+      RTS_Q.push(RTS);
+      E_Q.push(E);
+    }
+
   }
-  return address_to_JS_value(peek(OS, 0));
+  // return address_to_JS_value(peek(OS, 0));
 }
 
 // parse_compile_run on top level
