@@ -546,6 +546,8 @@ const value_index = (frame, x) => {
   return -1;
 };
 
+let is_context_switch = false;
+
 // in this machine, the builtins take their
 // arguments directly from the operand stack,
 // to save the creation of an intermediate
@@ -568,7 +570,7 @@ const builtin_implementation = {
     const value_index = OS.pop();
     const state = OS.pop();
     if (address_to_JS_value(state)) {
-      OS.pop();
+      // OS.pop();
       OS_Q.push(OS);
       PC_Q.push(PC - 4);
       RTS_Q.push(RTS);
@@ -579,6 +581,7 @@ const builtin_implementation = {
       PC = PC_Q.shift();
       RTS = RTS_Q.shift();
       E = E_Q.shift();
+      is_context_switch = true;
       display("Mutex already locked");
       // display(address_to_JS_value(mutex_addr));
     } else {
@@ -962,7 +965,11 @@ const apply_unop = (op, v) =>
 const apply_builtin = (builtin_id) => {
   const result = builtin_array[builtin_id]();
   OS.pop(); // pop fun
-  push(OS, result);
+  if (!is_context_switch) {
+    push(OS, result);
+  } else {
+    is_context_switch = false;
+  }
 };
 
 const allocate_builtin_frame = () => {
@@ -1199,16 +1206,6 @@ function run(heapsize_words) {
   // return address_to_JS_value(peek(OS, 0));
 }
 
-// parse_compile_run on top level
-// * parse input to json syntax tree
-// * compile syntax tree into code
-// * run code
-
-const parse_compile_run = (program, heapsize_words) => {
-  compile_program(parse_to_json(program));
-  return run(heapsize_words);
-};
-
 const test = (program, expected, heapsize) => {
   display(
     "",
@@ -1228,354 +1225,6 @@ Test case: ` +
   }
 };
 
-// obj = {
-//   NodeType: "File",
-//   Doc: null,
-//   Package: null,
-//   Name: { NodeType: "Ident", Name: "main" },
-//   Decls: [
-//     {
-//       NodeType: "GenDecl",
-//       Tok: "var",
-//       Specs: [
-//         {
-//           NodeType: "ValueSpec",
-//           Names: [{ NodeType: "Ident", Name: "x" }],
-//           Type: { NodeType: "Ident", Name: "int" },
-//           Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "2" }],
-//         },
-//       ],
-//     },
-//     {
-//       NodeType: "GenDecl",
-//       Tok: "var",
-//       Specs: [
-//         {
-//           NodeType: "ValueSpec",
-//           Names: [{ NodeType: "Ident", Name: "m" }],
-//           Type: {
-//             NodeType: "SelectorExpr",
-//             X: { NodeType: "Ident", Name: "sync" },
-//             Sel: { NodeType: "Ident", Name: "Mutex" },
-//           },
-//           Values: null,
-//         },
-//       ],
-//     },
-//     {
-//       NodeType: "FuncDecl",
-//       Recv: null,
-//       Name: { NodeType: "Ident", Name: "f" },
-//       Type: {
-//         NodeType: "FuncType",
-//         TypeParams: null,
-//         Params: { NodeType: "FieldList", List: null },
-//         Results: null,
-//       },
-//       Body: {
-//         NodeType: "BlockStmt",
-//         List: [
-//           {
-//             NodeType: "DeclStmt",
-//             Decl: {
-//               NodeType: "GenDecl",
-//               Tok: "var",
-//               Specs: [
-//                 {
-//                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "i" }],
-//                   Type: { NodeType: "Ident", Name: "int" },
-//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "0" }],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "ForStmt",
-//             Init: null,
-//             Cond: {
-//               NodeType: "BinaryExpr",
-//               X: { NodeType: "Ident", Name: "i" },
-//               Op: "\u003c",
-//               Y: { NodeType: "BasicLit", Kind: "INT", Value: "20" },
-//             },
-//             Post: null,
-//             Body: {
-//               NodeType: "BlockStmt",
-//               List: [
-//                 {
-//                   NodeType: "ExprStmt",
-//                   X: {
-//                     NodeType: "CallExpr",
-//                     Fun: {
-//                       NodeType: "SelectorExpr",
-//                       X: { NodeType: "Ident", Name: "m" },
-//                       Sel: { NodeType: "Ident", Name: "Lock" },
-//                     },
-//                     Args: null,
-//                   },
-//                 },
-//                 {
-//                   NodeType: "AssignStmt",
-//                   Lhs: [{ NodeType: "Ident", Name: "x" }],
-//                   Tok: "=",
-//                   Rhs: [{ NodeType: "BasicLit", Kind: "INT", Value: "0" }],
-//                 },
-//                 {
-//                   NodeType: "ExprStmt",
-//                   X: {
-//                     NodeType: "CallExpr",
-//                     Fun: {
-//                       NodeType: "SelectorExpr",
-//                       X: { NodeType: "Ident", Name: "m" },
-//                       Sel: { NodeType: "Ident", Name: "Unlock" },
-//                     },
-//                     Args: null,
-//                   },
-//                 },
-//                 {
-//                   NodeType: "ExprStmt",
-//                   X: {
-//                     NodeType: "CallExpr",
-//                     Fun: { NodeType: "Ident", Name: "println" },
-//                     Args: [{ NodeType: "Ident", Name: "x" }],
-//                   },
-//                 },
-//                 {
-//                   NodeType: "AssignStmt",
-//                   Lhs: [{ NodeType: "Ident", Name: "i" }],
-//                   Tok: "=",
-//                   Rhs: [
-//                     {
-//                       NodeType: "BinaryExpr",
-//                       X: { NodeType: "Ident", Name: "i" },
-//                       Op: "+",
-//                       Y: {
-//                         NodeType: "BasicLit",
-//                         Kind: "INT",
-//                         Value: "1",
-//                       },
-//                     },
-//                   ],
-//                 },
-//               ],
-//             },
-//           },
-//         ],
-//       },
-//     },
-//     {
-//       NodeType: "FuncDecl",
-//       Recv: null,
-//       Name: { NodeType: "Ident", Name: "g" },
-//       Type: {
-//         NodeType: "FuncType",
-//         TypeParams: null,
-//         Params: { NodeType: "FieldList", List: null },
-//         Results: null,
-//       },
-//       Body: {
-//         NodeType: "BlockStmt",
-//         List: [
-//           {
-//             NodeType: "DeclStmt",
-//             Decl: {
-//               NodeType: "GenDecl",
-//               Tok: "var",
-//               Specs: [
-//                 {
-//                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "i" }],
-//                   Type: { NodeType: "Ident", Name: "int" },
-//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "0" }],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "ForStmt",
-//             Init: null,
-//             Cond: {
-//               NodeType: "BinaryExpr",
-//               X: { NodeType: "Ident", Name: "i" },
-//               Op: "\u003c",
-//               Y: { NodeType: "BasicLit", Kind: "INT", Value: "20" },
-//             },
-//             Post: null,
-//             Body: {
-//               NodeType: "BlockStmt",
-//               List: [
-//                 {
-//                   NodeType: "ExprStmt",
-//                   X: {
-//                     NodeType: "CallExpr",
-//                     Fun: {
-//                       NodeType: "SelectorExpr",
-//                       X: { NodeType: "Ident", Name: "m" },
-//                       Sel: { NodeType: "Ident", Name: "Lock" },
-//                     },
-//                     Args: null,
-//                   },
-//                 },
-//                 {
-//                   NodeType: "AssignStmt",
-//                   Lhs: [{ NodeType: "Ident", Name: "x" }],
-//                   Tok: "=",
-//                   Rhs: [{ NodeType: "BasicLit", Kind: "INT", Value: "1" }],
-//                 },
-//                 {
-//                   NodeType: "ExprStmt",
-//                   X: {
-//                     NodeType: "CallExpr",
-//                     Fun: {
-//                       NodeType: "SelectorExpr",
-//                       X: { NodeType: "Ident", Name: "m" },
-//                       Sel: { NodeType: "Ident", Name: "Unlock" },
-//                     },
-//                     Args: null,
-//                   },
-//                 },
-//                 {
-//                   NodeType: "ExprStmt",
-//                   X: {
-//                     NodeType: "CallExpr",
-//                     Fun: { NodeType: "Ident", Name: "println" },
-//                     Args: [{ NodeType: "Ident", Name: "x" }],
-//                   },
-//                 },
-//                 {
-//                   NodeType: "AssignStmt",
-//                   Lhs: [{ NodeType: "Ident", Name: "i" }],
-//                   Tok: "=",
-//                   Rhs: [
-//                     {
-//                       NodeType: "BinaryExpr",
-//                       X: { NodeType: "Ident", Name: "i" },
-//                       Op: "+",
-//                       Y: {
-//                         NodeType: "BasicLit",
-//                         Kind: "INT",
-//                         Value: "1",
-//                       },
-//                     },
-//                   ],
-//                 },
-//               ],
-//             },
-//           },
-//         ],
-//       },
-//     },
-//     {
-//       NodeType: "FuncDecl",
-//       Recv: null,
-//       Name: { NodeType: "Ident", Name: "main" },
-//       Type: {
-//         NodeType: "FuncType",
-//         TypeParams: null,
-//         Params: { NodeType: "FieldList", List: null },
-//         Results: null,
-//       },
-//       Body: {
-//         NodeType: "BlockStmt",
-//         List: [
-//           {
-//             NodeType: "DeclStmt",
-//             Decl: {
-//               NodeType: "GenDecl",
-//               Tok: "var",
-//               Specs: [
-//                 {
-//                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "y" }],
-//                   Type: { NodeType: "Ident", Name: "int" },
-//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "0" }],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "GoStmt",
-//             Call: {
-//               NodeType: "CallExpr",
-//               Fun: { NodeType: "Ident", Name: "g" },
-//               Args: null,
-//             },
-//           },
-//           {
-//             NodeType: "GoStmt",
-//             Call: {
-//               NodeType: "CallExpr",
-//               Fun: { NodeType: "Ident", Name: "f" },
-//               Args: null,
-//             },
-//           },
-//           {
-//             NodeType: "ForStmt",
-//             Init: null,
-//             Cond: {
-//               NodeType: "BinaryExpr",
-//               X: { NodeType: "Ident", Name: "y" },
-//               Op: "\u003c",
-//               Y: { NodeType: "BasicLit", Kind: "INT", Value: "100" },
-//             },
-//             Post: null,
-//             Body: {
-//               NodeType: "BlockStmt",
-//               List: [
-//                 {
-//                   NodeType: "AssignStmt",
-//                   Lhs: [{ NodeType: "Ident", Name: "y" }],
-//                   Tok: "=",
-//                   Rhs: [
-//                     {
-//                       NodeType: "BinaryExpr",
-//                       X: { NodeType: "Ident", Name: "y" },
-//                       Op: "+",
-//                       Y: {
-//                         NodeType: "BasicLit",
-//                         Kind: "INT",
-//                         Value: "1",
-//                       },
-//                     },
-//                   ],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "ExprStmt",
-//             X: {
-//               NodeType: "CallExpr",
-//               Fun: { NodeType: "Ident", Name: "println" },
-//               Args: [{ NodeType: "BasicLit", Kind: "INT", Value: "25" }],
-//             },
-//           },
-//         ],
-//       },
-//     },
-//   ],
-//   Imports: null,
-//   Unresolved: null,
-//   Comments: null,
-//   FileSet: {
-//     Base: 397,
-//     Files: [
-//       {
-//         Name: "./temp/src_code.go",
-//         Base: 1,
-//         Size: 395,
-//         Lines: [
-//           0, 13, 14, 28, 45, 46, 57, 72, 86, 103, 111, 130, 143, 155, 158, 160,
-//           161, 172, 187, 201, 218, 226, 245, 258, 270, 273, 275, 276, 290, 305,
-//           330, 331, 339, 347, 348, 363, 375, 378, 394,
-//         ],
-//         Infos: null,
-//       },
-//     ],
-//   },
-// };
-
 function compile_and_run(obj) {
   main_call = {
     NodeType: "CallExpr",
@@ -1589,7 +1238,5 @@ function compile_and_run(obj) {
   run(50000);
   return OUTPUTS;
 }
-
-// compile_and_run(obj);
 
 module.exports = compile_and_run;
