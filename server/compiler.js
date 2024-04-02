@@ -127,8 +127,8 @@ let ALLOCATING;
 const mark_sweep = () => {
   // mark r for r in roots
   const roots = [...OS, E, ...RTS, ...ALLOCATING];
-  for (let i = 0; i < roots.length; i++) {
-    mark(roots[i]);
+  for (const element of roots) {
+    mark(element);
   }
 
   sweep();
@@ -1057,9 +1057,6 @@ const microcode = {
   GOCALL: (instr) => {
     const arity = instr.arity;
     const fun = peek(OS, arity);
-    if (is_Builtin(fun)) {
-      return apply_builtin(heap_get_Builtin_id(fun));
-    }
     const new_PC = heap_get_Closure_pc(fun);
     const new_frame = heap_allocate_Frame(arity);
     for (let i = arity - 1; i >= 0; i--) {
@@ -1067,12 +1064,11 @@ const microcode = {
     }
     OS.pop(); // pop fun
 
-    new_thread_OS = [];
+    let new_thread_OS = [];
     OS_Q.push(new_thread_OS);
-    new_thread_RTS = [];
+    let new_thread_RTS = [];
     push(new_thread_RTS, heap_allocate_Callframe(E, PC));
     RTS_Q.push(new_thread_RTS);
-    // push(RTS, heap_allocate_Callframe(E, PC));
 
     new_E = heap_Environment_extend(
       new_frame,
@@ -1081,7 +1077,6 @@ const microcode = {
     E_Q.push(new_E);
     PC_Q.push(new_PC);
     PC += 1;
-    // PC = new_PC;
   },
   CALL: (instr) => {
     const arity = instr.arity;
@@ -1226,7 +1221,7 @@ Test case: ` +
 };
 
 function compile_and_run(obj) {
-  main_call = {
+  let main_call = {
     NodeType: "CallExpr",
     Fun: { NodeType: "Ident", Name: "main" },
     Args: [],
