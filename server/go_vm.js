@@ -124,9 +124,26 @@ const MARKED = 1;
 let HEAP_BOTTOM;
 let ALLOCATING;
 
+const get_roots = () => {
+  let root_os = [...OS];
+  let root_E = [E];
+  let root_RTS = [...RTS];
+  for (const os of OS_Q) {
+    root_os.push(...os);
+  }
+  for (const e of E_Q) {
+    root_E.push(e);
+  }
+  for (const rts of RTS_Q) {
+    root_RTS.push(...rts);
+  }
+
+  return [...root_os, ...root_E, ...root_RTS, ...ALLOCATING];
+};
+
 const mark_sweep = () => {
   // mark r for r in roots
-  const roots = [...OS, E, ...RTS, ...ALLOCATING];
+  const roots = get_roots();
   for (const element of roots) {
     mark(element);
   }
@@ -1230,7 +1247,7 @@ function compile_and_run(obj) {
   json_code = { NodeType: "BlockStmt", List: obj.Decls };
   // console.log(json_code);
   compile_program(json_code);
-  run(50000);
+  run(1300);
   return OUTPUTS;
 }
 
