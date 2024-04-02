@@ -5,7 +5,7 @@ const fs = require("node:fs/promises");
 const { Console } = require("node:console");
 const execFile = util.promisify(require("node:child_process").execFile);
 
-const compile_and_run = require("./compiler");
+const compile_and_run = require("./go_vm");
 
 const app = express();
 app.use(express.json());

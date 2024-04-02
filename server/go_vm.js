@@ -127,8 +127,8 @@ let ALLOCATING;
 const mark_sweep = () => {
   // mark r for r in roots
   const roots = [...OS, E, ...RTS, ...ALLOCATING];
-  for (let i = 0; i < roots.length; i++) {
-    mark(roots[i]);
+  for (const element of roots) {
+    mark(element);
   }
 
   sweep();
@@ -546,6 +546,8 @@ const value_index = (frame, x) => {
   return -1;
 };
 
+let is_context_switch = false;
+
 // in this machine, the builtins take their
 // arguments directly from the operand stack,
 // to save the creation of an intermediate
@@ -563,6 +565,53 @@ const builtin_implementation = {
   },
   error: () => error(address_to_JS_value(OS.pop())),
   is_null: () => (is_Null(OS.pop()) ? True : False),
+  Lock: () => {
+    const frame_index = OS.pop();
+    const value_index = OS.pop();
+    const state = OS.pop();
+    if (address_to_JS_value(state)) {
+      // OS.pop();
+      OS_Q.push(OS);
+      PC_Q.push(PC - 4);
+      RTS_Q.push(RTS);
+      E_Q.push(E);
+
+      OS = OS_Q.shift();
+      OS.push(1);
+      PC = PC_Q.shift();
+      RTS = RTS_Q.shift();
+      E = E_Q.shift();
+      is_context_switch = true;
+      display("Mutex already locked");
+      // display(address_to_JS_value(mutex_addr));
+    } else {
+      // heap_set(mutex_addr, 10);
+      heap_set_Environment_value(
+        E,
+        [frame_index, value_index],
+        JS_value_to_address(true)
+      );
+      display("Locking Mutex");
+      // display(address_to_JS_value(mutex_addr));
+    }
+  },
+  Unlock: () => {
+    const frame_index = OS.pop();
+    const value_index = OS.pop();
+    const state = OS.pop();
+    if (address_to_JS_value(state)) {
+      heap_set_Environment_value(
+        E,
+        [frame_index, value_index],
+        JS_value_to_address(false)
+      );
+      // display(address_to_JS_value(mutex_addr));
+      display("Unlocking Mutex");
+    } else {
+      display("Mutex already unlocked");
+      error("Mutex already unlocked");
+    }
+  },
 };
 
 const builtins = {};
@@ -617,6 +666,9 @@ function scan_for_locals(statements) {
     switch (statement.NodeType) {
       case "DeclStmt":
         locals.push(statement.Decl.Specs[0].Names[0].Name);
+        break;
+      case "GenDecl":
+        locals.push(statement.Specs[0].Names[0].Name);
         break;
       case "FuncDecl":
         locals.push(statement.Name.Name);
@@ -677,7 +729,9 @@ const compile_comp = {
     instrs[wc++] = goto_instruction;
     const alternative_address = wc;
     jump_on_false_instruction.addr = alternative_address;
-    compile(comp.Else, ce);
+    if (comp.Else !== null) {
+      compile(comp.Else, ce);
+    }
     goto_instruction.addr = wc;
   },
   ForStmt: (comp, ce) => {
@@ -699,7 +753,11 @@ const compile_comp = {
       }
       instrs[wc++] = { tag: "CALL", arity: comp.Args.length };
     } else {
-      instrs[wc++] = { tag: "CALL", arity: 0 };
+      if (comp.Fun.NodeType === "SelectorExpr") {
+        instrs[wc++] = { tag: "CALL", arity: 3 };
+      } else {
+        instrs[wc++] = { tag: "CALL", arity: 0 };
+      }
     }
   },
   ExprStmt: (comp, ce) => {
@@ -708,17 +766,38 @@ const compile_comp = {
   ParenExpr: (comp, ce) => {
     compile(comp.X, ce);
   },
+  SelectorExpr: (comp, ce) => {
+    compile(comp.Sel, ce);
+    compile(comp.X, ce);
+    instrs[wc++] = {
+      tag: "LDADDR",
+      sym: comp.X.Name,
+      pos: compile_time_environment_position(ce, comp.X.Name),
+    };
+  },
+  GoStmt: (comp, ce) => {
+    comp.Call.NodeType = "GoCallExpr";
+    compile(comp.Call, ce);
+    instrs[wc++] = { tag: "ENDGO" };
+  },
+  GoCallExpr: (comp, ce) => {
+    compile(comp.Fun, ce);
+    if (comp.Args !== null) {
+      for (let arg of comp.Args) {
+        compile(arg, ce);
+      }
+      instrs[wc++] = { tag: "GOCALL", arity: comp.Args.length };
+    } else {
+      instrs[wc++] = { tag: "GOCALL", arity: 0 };
+    }
+  },
   FuncProc: (comp, ce) => {
     let prms = [];
     let arity = comp.Params.List !== null ? comp.Params.List.length : 0;
     // jump over the body of the lambda expression
     const goto_instruction = { tag: "GOTO" };
-    if (comp.Name !== "main") {
-      instrs[wc++] = { tag: "LDF", arity: arity, addr: wc + 1, name: "other" };
-      instrs[wc++] = goto_instruction;
-    } else {
-      instrs[wc++] = { tag: "LDF", arity: arity, addr: wc, name: "main" };
-    }
+    instrs[wc++] = { tag: "LDF", arity: arity, addr: wc + 1 };
+    instrs[wc++] = goto_instruction;
     if (arity > 0) {
       for (let prm of comp.Params.List) {
         prms.push(prm.Names[0].Name);
@@ -726,8 +805,8 @@ const compile_comp = {
     }
     // extend compile-time environment
     compile(comp.Body, compile_time_environment_extend(prms, ce));
-    // instrs[wc++] = { tag: "LDC", val: undefined };
-    // instrs[wc++] = { tag: "RESET" };
+    instrs[wc++] = { tag: "LDC", val: undefined };
+    instrs[wc++] = { tag: "RESET" };
     goto_instruction.addr = wc;
   },
   List: (comp, ce) => compile_sequence(comp, ce),
@@ -742,14 +821,59 @@ const compile_comp = {
     instrs[wc++] = { tag: "EXIT_SCOPE" };
   },
   DeclStmt: (comp, ce) => {
-    compile(comp.Decl.Specs[0].Values[0], ce);
-    instrs[wc++] = {
-      tag: "ASSIGN",
-      pos: compile_time_environment_position(
-        ce,
-        comp.Decl.Specs[0].Names[0].Name
-      ),
-    };
+    if (comp.Decl.Specs[0].Values !== null) {
+      compile(comp.Decl.Specs[0].Values[0], ce);
+      instrs[wc++] = {
+        tag: "ASSIGN",
+        pos: compile_time_environment_position(
+          ce,
+          comp.Decl.Specs[0].Names[0].Name
+        ),
+      };
+    } else if (comp.Decl.Specs[0].Type.NodeType === "SelectorExpr") {
+      if (comp.Decl.Specs[0].Type.Sel.Name === "Mutex") {
+        compile(
+          {
+            NodeType: "AssignStmt",
+            Lhs: [comp.Decl.Specs[0].Names[0]],
+            Tok: "=",
+            Rhs: [
+              {
+                NodeType: "Ident",
+                Name: "false",
+              },
+            ],
+          },
+          ce
+        );
+      }
+    }
+  },
+  GenDecl: (comp, ce) => {
+    if (comp.Specs[0].Values !== null) {
+      compile(comp.Specs[0].Values[0], ce);
+      instrs[wc++] = {
+        tag: "ASSIGN",
+        pos: compile_time_environment_position(ce, comp.Specs[0].Names[0].Name),
+      };
+    } else if (comp.Specs[0].Type.NodeType === "SelectorExpr") {
+      if (comp.Specs[0].Type.Sel.Name === "Mutex") {
+        compile(
+          {
+            NodeType: "AssignStmt",
+            Lhs: [comp.Specs[0].Names[0]],
+            Tok: "=",
+            Rhs: [
+              {
+                NodeType: "Ident",
+                Name: "false",
+              },
+            ],
+          },
+          ce
+        );
+      }
+    }
   },
   AssignStmt: (comp, ce) => {
     compile(comp.Rhs[0], ce);
@@ -803,7 +927,7 @@ const compile_program = (program) => {
 // **********************
 // operators and builtins
 // **********************/
-
+// os: [0, 100]
 const binop_microcode = {
   "+": (x, y) =>
     (is_number(x) && is_number(y)) || (is_string(x) && is_string(y))
@@ -831,7 +955,7 @@ const apply_binop = (op, v2, v1) =>
   );
 
 const unop_microcode = {
-  "-unary": (x) => -x,
+  "-": (x) => -x,
   "!": (x) => !x,
 };
 
@@ -841,7 +965,11 @@ const apply_unop = (op, v) =>
 const apply_builtin = (builtin_id) => {
   const result = builtin_array[builtin_id]();
   OS.pop(); // pop fun
-  push(OS, result);
+  if (!is_context_switch) {
+    push(OS, result);
+  } else {
+    is_context_switch = false;
+  }
 };
 
 const allocate_builtin_frame = () => {
@@ -878,6 +1006,12 @@ let OS; // JS array (stack) of words (Addresses,
 let PC; // JS number
 let E; // heap Address
 let RTS; // JS array (stack) of Addresses
+
+let OS_Q;
+let PC_Q;
+let RTS_Q;
+let E_Q;
+
 HEAP; // (declared above already)
 
 const microcode = {
@@ -896,8 +1030,14 @@ const microcode = {
     }
   },
   EXIT_SCOPE: (instr) => (E = heap_get_Blockframe_environment(RTS.pop())),
+  LDADDR: (instr) => {
+    const [frame_index, value_index] = instr.pos;
+    push(OS, value_index);
+    push(OS, frame_index);
+  },
   LD: (instr) => {
     const val = heap_get_Environment_value(E, instr.pos);
+    // console.log(address_to_JS_value(val) + " " + instr.pos);
     if (is_Unassigned(val)) error("access of unassigned variable");
     push(OS, val);
   },
@@ -905,6 +1045,38 @@ const microcode = {
   LDF: (instr) => {
     const closure_address = heap_allocate_Closure(instr.arity, instr.addr, E);
     push(OS, closure_address);
+  },
+  ENDGO: (instr) => {
+    if (OS_Q.length != 0) {
+      OS = OS_Q.shift();
+      PC = PC_Q.shift();
+      RTS = RTS_Q.shift();
+      E = E_Q.shift();
+    }
+  },
+  GOCALL: (instr) => {
+    const arity = instr.arity;
+    const fun = peek(OS, arity);
+    const new_PC = heap_get_Closure_pc(fun);
+    const new_frame = heap_allocate_Frame(arity);
+    for (let i = arity - 1; i >= 0; i--) {
+      heap_set_child(new_frame, i, OS.pop());
+    }
+    OS.pop(); // pop fun
+
+    let new_thread_OS = [];
+    OS_Q.push(new_thread_OS);
+    let new_thread_RTS = [];
+    push(new_thread_RTS, heap_allocate_Callframe(E, PC));
+    RTS_Q.push(new_thread_RTS);
+
+    new_E = heap_Environment_extend(
+      new_frame,
+      heap_get_Closure_environment(fun)
+    );
+    E_Q.push(new_E);
+    PC_Q.push(new_PC);
+    PC += 1;
   },
   CALL: (instr) => {
     const arity = instr.arity;
@@ -953,9 +1125,15 @@ const microcode = {
 
 // set up registers, including free list
 function initialize_machine(heapsize_words) {
+  OS_Q = [];
+  PC_Q = [];
+  RTS_Q = [];
+  E_Q = [];
+
   OS = [];
   PC = 0;
   RTS = [];
+
   // modified
   ALLOCATING = [];
   HEAP_BOTTOM = undefined; // the initial bottom is unknown
@@ -972,7 +1150,7 @@ function initialize_machine(heapsize_words) {
   // the empty free list is represented by -1
   heap_set(i - node_size, -1);
   free = 0;
-  PC = 0;
+  // PC = 0;
   allocate_literal_values();
   // display(free)
   const builtins_frame = allocate_builtin_frame();
@@ -986,27 +1164,42 @@ function initialize_machine(heapsize_words) {
   E = heap_Environment_extend(constants_frame, E);
   // display(free)
   // modified
+
+  OS_Q.push(OS);
+  PC_Q.push(PC);
+  RTS_Q.push(RTS);
+  E_Q.push(E);
+
   HEAP_BOTTOM = free;
 }
 
 function run(heapsize_words) {
   initialize_machine(heapsize_words);
+
+  let switch_freq = 10; //context switch every x instrs
+  let i = 0;
   while (instrs[PC].tag !== "DONE") {
+    if (i % switch_freq == 0) {
+      OS = OS_Q.shift();
+      PC = PC_Q.shift();
+      RTS = RTS_Q.shift();
+      E = E_Q.shift();
+    }
+
+    i += 1;
+
     const instr = instrs[PC++];
     microcode[instr.tag](instr);
+
+    if (instr != "ENDGO" && i % switch_freq == 0) {
+      OS_Q.push(OS);
+      PC_Q.push(PC);
+      RTS_Q.push(RTS);
+      E_Q.push(E);
+    }
   }
-  return address_to_JS_value(peek(OS, 0));
+  // return address_to_JS_value(peek(OS, 0));
 }
-
-// parse_compile_run on top level
-// * parse input to json syntax tree
-// * compile syntax tree into code
-// * run code
-
-const parse_compile_run = (program, heapsize_words) => {
-  compile_program(parse_to_json(program));
-  return run(heapsize_words);
-};
 
 const test = (program, expected, heapsize) => {
   display(
@@ -1028,9 +1221,16 @@ Test case: ` +
 };
 
 function compile_and_run(obj) {
+  let main_call = {
+    NodeType: "CallExpr",
+    Fun: { NodeType: "Ident", Name: "main" },
+    Args: [],
+  };
+  obj.Decls.push(main_call);
   json_code = { NodeType: "BlockStmt", List: obj.Decls };
+  // console.log(json_code);
   compile_program(json_code);
-  run(580);
+  run(50000);
   return OUTPUTS;
 }
 
