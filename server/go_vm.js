@@ -737,20 +737,23 @@ const compile_comp = {
     }
   },
   UnaryExpr: (comp, ce) => {
-    if (comp.Op === "<-"){
+    if (comp.Op === "<-") {
       //attempt to access channel - ensure in scope
-      compile({ NodeType: "Ident", Name: comp.X.Name}, ce)
+      compile({ NodeType: "Ident", Name: comp.X.Name }, ce);
       //POP OS @ RUNTIMe to remove chan value
-      instrs[wc++] = { tag: "POP" }
+      instrs[wc++] = { tag: "POP" };
 
       //TODO: push name of channel onto OS s.t. RECV can use it -> or maybe compile time pos?
       //TODO: Create RECV - see notepad impl
-      
-      instrs[wc++] = { tag: "RECV"};
-      return
+
+      instrs[wc++] = {
+        tag: "RECV",
+        name: comp.X.Name,
+      };
+    } else {
+      compile(comp.X, ce);
+      instrs[wc++] = { tag: "UNOP", sym: comp.Op };
     }
-    compile(comp.X, ce);
-    instrs[wc++] = { tag: "UNOP", sym: comp.Op };
   },
   BinaryExpr: (comp, ce) => {
     compile(comp.X, ce);
@@ -894,17 +897,32 @@ const compile_comp = {
       pos: compile_time_environment_position(ce, comp.Chan.Name),
     };
     // POP OS @ RUNTIMe to remove chan value
-    instrs[wc++] = { tag: "POP" }
-    
+    instrs[wc++] = { tag: "POP" };
+
     //NO NEED THIS: TODO: put channel name on os again for send to actually occur -> or maybe compile time pos?
     //TODO: Create SEND - see notepad impl
-    
-    instrs[wc++] = { tag: "SEND"};
+    // if (comp.Name === "true" || comp.Name === "false") {
+    //   instrs[wc++] = { tag: "LDC", val: comp.Name === "true" };
+    if (comp.Value.Name === "true" || comp.Value.Name === "false") {
+      instrs[wc++] = {
+        tag: "SEND",
+        name: comp.Chan.Name,
+        value: comp.Value.Name === "true",
+      };
+    } else {
+      instrs[wc++] = {
+        tag: "SEND",
+        name: comp.Chan.Name,
+        value: Number(comp.Value.Value),
+      };
+    }
   },
   GenDecl: (comp, ce) => {
-    if (comp.Specs[0].Values[0].NodeType === "CallExpr" && 
-    comp.Specs[0].Values[0].Fun.Name === "make" && 
-    comp.Specs[0].Values[0].Fun.Args[0].NodeType === "ChanType"){
+    if (
+      comp.Specs[0].Values[0].NodeType === "CallExpr" &&
+      comp.Specs[0].Values[0].Fun.Name === "make" &&
+      comp.Specs[0].Values[0].Args[0].NodeType === "ChanType"
+    ) {
       compile(
         {
           NodeType: "AssignStmt",
@@ -920,9 +938,7 @@ const compile_comp = {
         ce
       );
       //TODO: NEED TO POP THE OS AT RUNTIME TO GET RID OF CHAN VALUE ??
-
-    }
-    else if (comp.Specs[0].Values !== null) {
+    } else if (comp.Specs[0].Values !== null) {
       compile(comp.Specs[0].Values[0], ce);
       instrs[wc++] = {
         tag: "ASSIGN",
@@ -1128,16 +1144,42 @@ const microcode = {
     }
   },
   SEND: (instr) => {
-    // save the value in the current thread's reg 
+    // save the value in the current thread's reg
     // block and context switch
+    const new_thread = new ThreadContext(E, PC - 1, OS, RTS);
+    new_thread.channels[instr.name] = instr.value;
+    context_Q.push(new_thread);
+    // context switch
+    const thread = context_Q.shift();
+    OS = thread.OS;
+    PC = thread.PC;
+    RTS = thread.RTS;
+    E = thread.E;
   },
   RECV: (instr) => {
     // 1. check context_q if there is exisitng sender alr there (iterate from start of context_q)
     // 2. if not, block itself i.e. just push itself to context q, ensure PC is at same instr s.t. check for corresponging send next time
     // 3. if yes, take value from sender, put in own OS
     //   4. unblock the sender by incrementing its PC
-    // 5. unblock itself -> dont need to do anything 
-    
+    // 5. unblock itself -> dont need to do anything
+    for (const q of context_Q) {
+      if (instr.name in q.channels) {
+        push(OS, JS_value_to_address(q.channels[instr.name]));
+        delete q.channels[instr.name];
+        q.PC++;
+        return;
+      }
+    }
+    // Dont have any read value in any channel so block itself
+    const new_thread = new ThreadContext(E, PC - 1, OS, RTS);
+    context_Q.push(new_thread);
+
+    // context switch
+    const thread = context_Q.shift();
+    OS = thread.OS;
+    PC = thread.PC;
+    RTS = thread.RTS;
+    E = thread.E;
   },
   GOCALL: (instr) => {
     const arity = instr.arity;
@@ -1224,24 +1266,28 @@ class ThreadContext {
       this.OS = [];
       this.PC = 0;
       this.RTS = [];
-      this.E = E;
     } else if (arguments.length === 2) {
       this.OS = [];
       this.PC = PC;
       this.RTS = [];
-      this.E = E;
     } else {
       this.OS = OS;
       this.PC = PC;
       this.RTS = RTS;
-      this.E = E;
     }
+    this.channels = {};
+    this.E = E;
+  }
+
+  get_channels() {
+    return this.channels;
   }
 }
 
 // running the machine
 
 let context_Q = [];
+let channels = { m: 2 };
 // set up registers, including free list
 function initialize_machine(heapsize_words) {
   // OS_Q = [];
@@ -1347,203 +1393,6 @@ Test case: ` +
     error(result, "result:");
   }
 };
-
-// obj = {
-//   NodeType: "File",
-//   Doc: null,
-//   Package: null,
-//   Name: { NodeType: "Ident", Name: "main" },
-//   Decls: [
-//     {
-//       NodeType: "GenDecl",
-//       Tok: "var",
-//       Specs: [
-//         {
-//           NodeType: "ValueSpec",
-//           Names: [{ NodeType: "Ident", Name: "x" }],
-//           Type: { NodeType: "Ident", Name: "int" },
-//           Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "2" }],
-//         },
-//       ],
-//     },
-//     {
-//       NodeType: "FuncDecl",
-//       Recv: null,
-//       Name: { NodeType: "Ident", Name: "g" },
-//       Type: {
-//         NodeType: "FuncType",
-//         TypeParams: null,
-//         Params: { NodeType: "FieldList", List: null },
-//         Results: null,
-//       },
-//       Body: {
-//         NodeType: "BlockStmt",
-//         List: [
-//           {
-//             NodeType: "DeclStmt",
-//             Decl: {
-//               NodeType: "GenDecl",
-//               Tok: "var",
-//               Specs: [
-//                 {
-//                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "i" }],
-//                   Type: { NodeType: "Ident", Name: "int" },
-//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "0" }],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "ForStmt",
-//             Init: null,
-//             Cond: {
-//               NodeType: "BinaryExpr",
-//               X: { NodeType: "Ident", Name: "i" },
-//               Op: "\u003c",
-//               Y: { NodeType: "BasicLit", Kind: "INT", Value: "3" },
-//             },
-//             Post: null,
-//             Body: {
-//               NodeType: "BlockStmt",
-//               List: [
-//                 {
-//                   NodeType: "AssignStmt",
-//                   Lhs: [{ NodeType: "Ident", Name: "x" }],
-//                   Tok: "=",
-//                   Rhs: [{ NodeType: "BasicLit", Kind: "INT", Value: "1" }],
-//                 },
-//                 {
-//                   NodeType: "ExprStmt",
-//                   X: {
-//                     NodeType: "CallExpr",
-//                     Fun: { NodeType: "Ident", Name: "println" },
-//                     Args: [{ NodeType: "Ident", Name: "x" }],
-//                   },
-//                 },
-//                 {
-//                   NodeType: "AssignStmt",
-//                   Lhs: [{ NodeType: "Ident", Name: "i" }],
-//                   Tok: "=",
-//                   Rhs: [
-//                     {
-//                       NodeType: "BinaryExpr",
-//                       X: { NodeType: "Ident", Name: "i" },
-//                       Op: "+",
-//                       Y: {
-//                         NodeType: "BasicLit",
-//                         Kind: "INT",
-//                         Value: "1",
-//                       },
-//                     },
-//                   ],
-//                 },
-//               ],
-//             },
-//           },
-//         ],
-//       },
-//     },
-//     {
-//       NodeType: "FuncDecl",
-//       Recv: null,
-//       Name: { NodeType: "Ident", Name: "main" },
-//       Type: {
-//         NodeType: "FuncType",
-//         TypeParams: null,
-//         Params: { NodeType: "FieldList", List: null },
-//         Results: null,
-//       },
-//       Body: {
-//         NodeType: "BlockStmt",
-//         List: [
-//           {
-//             NodeType: "DeclStmt",
-//             Decl: {
-//               NodeType: "GenDecl",
-//               Tok: "var",
-//               Specs: [
-//                 {
-//                   NodeType: "ValueSpec",
-//                   Names: [{ NodeType: "Ident", Name: "y" }],
-//                   Type: { NodeType: "Ident", Name: "int" },
-//                   Values: [{ NodeType: "BasicLit", Kind: "INT", Value: "0" }],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "GoStmt",
-//             Call: {
-//               NodeType: "CallExpr",
-//               Fun: { NodeType: "Ident", Name: "g" },
-//               Args: null,
-//             },
-//           },
-//           {
-//             NodeType: "ForStmt",
-//             Init: null,
-//             Cond: {
-//               NodeType: "BinaryExpr",
-//               X: { NodeType: "Ident", Name: "y" },
-//               Op: "\u003c",
-//               Y: { NodeType: "BasicLit", Kind: "INT", Value: "100" },
-//             },
-//             Post: null,
-//             Body: {
-//               NodeType: "BlockStmt",
-//               List: [
-//                 {
-//                   NodeType: "AssignStmt",
-//                   Lhs: [{ NodeType: "Ident", Name: "y" }],
-//                   Tok: "=",
-//                   Rhs: [
-//                     {
-//                       NodeType: "BinaryExpr",
-//                       X: { NodeType: "Ident", Name: "y" },
-//                       Op: "+",
-//                       Y: {
-//                         NodeType: "BasicLit",
-//                         Kind: "INT",
-//                         Value: "1",
-//                       },
-//                     },
-//                   ],
-//                 },
-//               ],
-//             },
-//           },
-//           {
-//             NodeType: "ExprStmt",
-//             X: {
-//               NodeType: "CallExpr",
-//               Fun: { NodeType: "Ident", Name: "println" },
-//               Args: [{ NodeType: "BasicLit", Kind: "INT", Value: "25" }],
-//             },
-//           },
-//         ],
-//       },
-//     },
-//   ],
-//   Imports: null,
-//   Unresolved: null,
-//   Comments: null,
-//   FileSet: {
-//     Base: 225,
-//     Files: [
-//       {
-//         Name: "./temp/src_code.go",
-//         Base: 1,
-//         Size: 223,
-//         Lines: [
-//           0, 13, 14, 28, 29, 40, 55, 68, 76, 95, 107, 110, 112, 113, 127, 142,
-//           167, 168, 176, 191, 203, 206, 222,
-//         ],
-//         Infos: null,
-//       },
-//     ],
-//   },
-// };
 
 function compile_and_run(obj) {
   let main_call = {
