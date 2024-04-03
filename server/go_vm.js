@@ -737,6 +737,18 @@ const compile_comp = {
     }
   },
   UnaryExpr: (comp, ce) => {
+    if (comp.Op === "<-"){
+      //attempt to access channel - ensure in scope
+      compile({ NodeType: "Ident", Name: comp.X.Name}, ce)
+      //POP OS @ RUNTIMe to remove chan value
+      instrs[wc++] = { tag: "POP" }
+
+      //TODO: push name of channel onto OS s.t. RECV can use it -> or maybe compile time pos?
+      //TODO: Create RECV - see notepad impl
+      
+      instrs[wc++] = { tag: "RECV"};
+      return
+    }
     compile(comp.X, ce);
     instrs[wc++] = { tag: "UNOP", sym: comp.Op };
   },
@@ -874,8 +886,43 @@ const compile_comp = {
       }
     }
   },
+  SendStmt: (comp, ce) => {
+    //attempt to access channel - ensures in scope
+    compile(comp.Value, ce);
+    instrs[wc++] = {
+      tag: "ASSIGN",
+      pos: compile_time_environment_position(ce, comp.Chan.Name),
+    };
+    // POP OS @ RUNTIMe to remove chan value
+    instrs[wc++] = { tag: "POP" }
+    
+    //NO NEED THIS: TODO: put channel name on os again for send to actually occur -> or maybe compile time pos?
+    //TODO: Create SEND - see notepad impl
+    
+    instrs[wc++] = { tag: "SEND"};
+  },
   GenDecl: (comp, ce) => {
-    if (comp.Specs[0].Values !== null) {
+    if (comp.Specs[0].Values[0].NodeType === "CallExpr" && 
+    comp.Specs[0].Values[0].Fun.Name === "make" && 
+    comp.Specs[0].Values[0].Fun.Args[0].NodeType === "ChanType"){
+      compile(
+        {
+          NodeType: "AssignStmt",
+          Lhs: [comp.Specs[0].Names[0]],
+          Tok: "=",
+          Rhs: [
+            {
+              NodeType: "Ident",
+              Name: "false", //some dummy value
+            },
+          ],
+        },
+        ce
+      );
+      //TODO: NEED TO POP THE OS AT RUNTIME TO GET RID OF CHAN VALUE ??
+
+    }
+    else if (comp.Specs[0].Values !== null) {
       compile(comp.Specs[0].Values[0], ce);
       instrs[wc++] = {
         tag: "ASSIGN",
@@ -1079,6 +1126,18 @@ const microcode = {
       RTS = thread.RTS;
       E = thread.E;
     }
+  },
+  SEND: (instr) => {
+    // save the value in the current thread's reg 
+    // block and context switch
+  },
+  RECV: (instr) => {
+    // 1. check context_q if there is exisitng sender alr there (iterate from start of context_q)
+    // 2. if not, block itself i.e. just push itself to context q, ensure PC is at same instr s.t. check for corresponging send next time
+    // 3. if yes, take value from sender, put in own OS
+    //   4. unblock the sender by incrementing its PC
+    // 5. unblock itself -> dont need to do anything 
+    
   },
   GOCALL: (instr) => {
     const arity = instr.arity;
