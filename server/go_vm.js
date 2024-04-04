@@ -20,7 +20,7 @@ function blockingSleep(ms) {
 }
 
 // Output of program
-OUTPUTS = [];
+let OUTPUTS = [];
 
 // **********************
 // using arrays as stacks
@@ -39,16 +39,6 @@ const push = (array, ...items) => {
 // return the last element of given array
 // without changing the array
 const peek = (array, address) => array.slice(-1 - address)[0];
-
-// *************
-// parse to JSON
-// *************/
-
-const list_to_array = (xs) =>
-  is_null(xs) ? [] : [head(xs)].concat(list_to_array(tail(xs)));
-
-// simplify parameter format
-const parameters = (xs) => map((x) => head(tail(x)), xs);
 
 // *************************
 // HEAP
@@ -133,15 +123,6 @@ const get_roots = () => {
     root_E.push(context.E);
     root_RTS.push(...context.RTS);
   }
-  // for (const os of OS_Q) {
-  //   root_os.push(...os);
-  // }
-  // for (const e of E_Q) {
-  //   root_E.push(e);
-  // }
-  // for (const rts of RTS_Q) {
-  //   root_RTS.push(...rts);
-  // }
 
   return [...root_os, ...root_E, ...root_RTS, ...ALLOCATING];
 };
@@ -421,8 +402,8 @@ const heap_Frame_display = (address) => {
 //  2 bytes #children, 1 byte unused]
 // followed by the addresses of its frames
 
-const heap_allocate_Environment = (number_of_frames, frame_address = Null) =>
-  heap_allocate(Environment_tag, number_of_frames + 1, frame_address);
+const heap_allocate_Environment = (number_of_frames) =>
+  heap_allocate(Environment_tag, number_of_frames + 1);
 
 // access environment given by address
 // using a "position", i.e. a pair of
@@ -446,7 +427,7 @@ const heap_set_Environment_value = (env_address, position, value) => {
 // environment to the new environment.
 // enter the address of the new frame to end
 // of the new environment
-const heap_Environment_extend = (frame_address, env_address, frame_alloc) => {
+const heap_Environment_extend = (frame_address, env_address) => {
   const old_size = heap_get_size(env_address);
   // modified: should not free frame address and env address here
   ALLOCATING = [frame_address, env_address];
@@ -592,11 +573,6 @@ const builtin_implementation = {
     const value_index = OS.pop();
     const state = OS.pop();
     if (address_to_JS_value(state)) {
-      // OS.pop();
-      // OS_Q.push(OS);
-      // PC_Q.push(PC - 4);
-      // RTS_Q.push(RTS);
-      // E_Q.push(E);
       const new_thread = new ThreadContext(E, PC - 4, OS, RTS);
       context_Q.push(new_thread);
 
@@ -608,16 +584,13 @@ const builtin_implementation = {
       OS.push(1);
       is_context_switch = true;
       display("Mutex already locked");
-      // display(address_to_JS_value(mutex_addr));
     } else {
-      // heap_set(mutex_addr, 10);
       heap_set_Environment_value(
         E,
         [frame_index, value_index],
         JS_value_to_address(true)
       );
       display("Locking Mutex");
-      // display(address_to_JS_value(mutex_addr));
     }
   },
   Unlock: () => {
@@ -630,7 +603,6 @@ const builtin_implementation = {
         [frame_index, value_index],
         JS_value_to_address(false)
       );
-      // display(address_to_JS_value(mutex_addr));
       display("Unlocking Mutex");
     } else {
       display("Mutex already unlocked");
@@ -740,11 +712,8 @@ const compile_comp = {
     if (comp.Op === "<-") {
       //attempt to access channel - ensure in scope
       compile({ NodeType: "Ident", Name: comp.X.Name }, ce);
-      //POP OS @ RUNTIMe to remove chan value
+      //POP OS @ RUNTIME to remove chan value
       instrs[wc++] = { tag: "POP" };
-
-      //TODO: push name of channel onto OS s.t. RECV can use it -> or maybe compile time pos?
-      //TODO: Create RECV - see notepad impl
 
       instrs[wc++] = {
         tag: "RECV",
@@ -896,13 +865,9 @@ const compile_comp = {
       tag: "ASSIGN",
       pos: compile_time_environment_position(ce, comp.Chan.Name),
     };
-    // POP OS @ RUNTIMe to remove chan value
+    // POP OS @ RUNTIME to remove chan value
     instrs[wc++] = { tag: "POP" };
 
-    //NO NEED THIS: TODO: put channel name on os again for send to actually occur -> or maybe compile time pos?
-    //TODO: Create SEND - see notepad impl
-    // if (comp.Name === "true" || comp.Name === "false") {
-    //   instrs[wc++] = { tag: "LDC", val: comp.Name === "true" };
     if (comp.Value.Name === "true" || comp.Value.Name === "false") {
       instrs[wc++] = {
         tag: "SEND",
@@ -918,32 +883,36 @@ const compile_comp = {
     }
   },
   GenDecl: (comp, ce) => {
-    if (
-      comp.Specs[0].Values[0].NodeType === "CallExpr" &&
-      comp.Specs[0].Values[0].Fun.Name === "make" &&
-      comp.Specs[0].Values[0].Args[0].NodeType === "ChanType"
-    ) {
-      compile(
-        {
-          NodeType: "AssignStmt",
-          Lhs: [comp.Specs[0].Names[0]],
-          Tok: "=",
-          Rhs: [
-            {
-              NodeType: "Ident",
-              Name: "false", //some dummy value
-            },
-          ],
-        },
-        ce
-      );
-      //TODO: NEED TO POP THE OS AT RUNTIME TO GET RID OF CHAN VALUE ??
-    } else if (comp.Specs[0].Values !== null) {
-      compile(comp.Specs[0].Values[0], ce);
-      instrs[wc++] = {
-        tag: "ASSIGN",
-        pos: compile_time_environment_position(ce, comp.Specs[0].Names[0].Name),
-      };
+    if (comp.Specs[0].Values !== null) {
+      if (
+        comp.Specs[0].Values[0].NodeType === "CallExpr" &&
+        comp.Specs[0].Values[0].Fun.Name === "make" &&
+        comp.Specs[0].Values[0].Args[0].NodeType === "ChanType"
+      ) {
+        compile(
+          {
+            NodeType: "AssignStmt",
+            Lhs: [comp.Specs[0].Names[0]],
+            Tok: "=",
+            Rhs: [
+              {
+                NodeType: "Ident",
+                Name: "false", //some dummy value
+              },
+            ],
+          },
+          ce
+        );
+      } else {
+        compile(comp.Specs[0].Values[0], ce);
+        instrs[wc++] = {
+          tag: "ASSIGN",
+          pos: compile_time_environment_position(
+            ce,
+            comp.Specs[0].Names[0].Name
+          ),
+        };
+      }
     } else if (comp.Specs[0].Type.NodeType === "SelectorExpr") {
       if (comp.Specs[0].Type.Sel.Name === "Mutex") {
         compile(
@@ -1015,13 +984,11 @@ const compile_program = (program) => {
 // **********************
 // operators and builtins
 // **********************/
-// os: [0, 100]
 const binop_microcode = {
   "+": (x, y) =>
     (is_number(x) && is_number(y)) || (is_string(x) && is_string(y))
       ? x + y
       : error([x, y], "+ expects two numbers" + " or two strings, got:"),
-  // todo: add error handling to JS for the following, too
   "*": (x, y) => x * y,
   "-": (x, y) => x - y,
   "/": (x, y) => x / y,
@@ -1095,11 +1062,6 @@ let PC; // JS number
 let E; // heap Address
 let RTS; // JS array (stack) of Addresses
 
-let OS_Q;
-let PC_Q;
-let RTS_Q;
-let E_Q;
-
 HEAP; // (declared above already)
 
 const microcode = {
@@ -1125,7 +1087,6 @@ const microcode = {
   },
   LD: (instr) => {
     const val = heap_get_Environment_value(E, instr.pos);
-    // console.log(address_to_JS_value(val) + " " + instr.pos);
     if (is_Unassigned(val)) error("access of unassigned variable");
     push(OS, val);
   },
@@ -1160,7 +1121,7 @@ const microcode = {
     // 1. check context_q if there is exisitng sender alr there (iterate from start of context_q)
     // 2. if not, block itself i.e. just push itself to context q, ensure PC is at same instr s.t. check for corresponging send next time
     // 3. if yes, take value from sender, put in own OS
-    //   4. unblock the sender by incrementing its PC
+    // 4. unblock the sender by incrementing its PC
     // 5. unblock itself -> dont need to do anything
     for (const q of context_Q) {
       if (instr.name in q.channels) {
@@ -1191,18 +1152,12 @@ const microcode = {
     }
     OS.pop(); // pop fun
 
-    // let new_thread_OS = [];
-    // OS_Q.push(new_thread_OS);
-    // let new_thread_RTS = [];
     push([], heap_allocate_Callframe(E, PC));
-    // RTS_Q.push(new_thread_RTS);
 
-    new_E = heap_Environment_extend(
+    const new_E = heap_Environment_extend(
       new_frame,
       heap_get_Closure_environment(fun)
     );
-    // E_Q.push(new_E);
-    // PC_Q.push(new_PC);
     const new_thread = new ThreadContext(new_E, new_PC);
     context_Q.push(new_thread);
     PC += 1;
@@ -1252,14 +1207,13 @@ const microcode = {
       while (!is_Callframe(top_frame)) {
         top_frame = RTS.pop();
       }
-      display(top_frame, "top frame: ");
       E = heap_get_Callframe_environment(top_frame);
       PC = heap_get_Callframe_pc(top_frame);
     }
   },
 };
 
-// initialise class
+// initialise thread context Q class
 class ThreadContext {
   constructor(E, PC, OS, RTS) {
     if (arguments.length === 1) {
@@ -1287,19 +1241,12 @@ class ThreadContext {
 // running the machine
 
 let context_Q = [];
-let channels = { m: 2 };
 // set up registers, including free list
 function initialize_machine(heapsize_words) {
-  // OS_Q = [];
-  // PC_Q = [];
-  // RTS_Q = [];
-  // E_Q = [];
-
   OS = [];
   PC = 0;
   RTS = [];
 
-  // modified
   ALLOCATING = [];
   HEAP_BOTTOM = undefined; // the initial bottom is unknown
 
@@ -1315,27 +1262,15 @@ function initialize_machine(heapsize_words) {
   // the empty free list is represented by -1
   heap_set(i - node_size, -1);
   free = 0;
-  // PC = 0;
   allocate_literal_values();
-  // display(free)
   const builtins_frame = allocate_builtin_frame();
-  // display(free)
   const constants_frame = allocate_constant_frame();
-  // display(free)
   E = heap_allocate_Environment(0);
-  // display(free)
   E = heap_Environment_extend(builtins_frame, E);
-  // display(free)
   E = heap_Environment_extend(constants_frame, E);
-  // display(free)
-  // modified
 
   const main_thread = new ThreadContext(E);
   context_Q.push(main_thread);
-  // OS_Q.push(OS);
-  // PC_Q.push(PC);
-  // RTS_Q.push(RTS);
-  // E_Q.push(E);
 
   HEAP_BOTTOM = free;
 }
@@ -1352,10 +1287,6 @@ function run(heapsize_words) {
       PC = curr_thread.PC;
       RTS = curr_thread.RTS;
       E = curr_thread.E;
-      // OS = OS_Q.shift();
-      // PC = PC_Q.shift();
-      // RTS = RTS_Q.shift();
-      // E = E_Q.shift();
     }
 
     i += 1;
@@ -1366,13 +1297,8 @@ function run(heapsize_words) {
     if (instr != "ENDGO" && i % switch_freq == 0) {
       const thread = new ThreadContext(E, PC, OS, RTS);
       context_Q.push(thread);
-      // OS_Q.push(OS);
-      // PC_Q.push(PC);
-      // RTS_Q.push(RTS);
-      // E_Q.push(E);
     }
   }
-  // return address_to_JS_value(peek(OS, 0));
 }
 
 const test = (program, expected, heapsize) => {
@@ -1401,13 +1327,10 @@ function compile_and_run(obj) {
     Args: [],
   };
   obj.Decls.push(main_call);
-  json_code = { NodeType: "BlockStmt", List: obj.Decls };
-  // console.log(json_code);
+  let json_code = { NodeType: "BlockStmt", List: obj.Decls };
   compile_program(json_code);
-  run(50000);
+  run(1500);
   return OUTPUTS;
 }
-
-// compile_and_run(obj);
 
 module.exports = compile_and_run;
