@@ -830,33 +830,7 @@ const compile_comp = {
     instrs[wc++] = { tag: "EXIT_SCOPE" };
   },
   DeclStmt: (comp, ce) => {
-    if (comp.Decl.Specs[0].Values !== null) {
-      compile(comp.Decl.Specs[0].Values[0], ce);
-      instrs[wc++] = {
-        tag: "ASSIGN",
-        pos: compile_time_environment_position(
-          ce,
-          comp.Decl.Specs[0].Names[0].Name
-        ),
-      };
-    } else if (comp.Decl.Specs[0].Type.NodeType === "SelectorExpr") {
-      if (comp.Decl.Specs[0].Type.Sel.Name === "Mutex") {
-        compile(
-          {
-            NodeType: "AssignStmt",
-            Lhs: [comp.Decl.Specs[0].Names[0]],
-            Tok: "=",
-            Rhs: [
-              {
-                NodeType: "Ident",
-                Name: "false",
-              },
-            ],
-          },
-          ce
-        );
-      }
-    }
+    compile(comp.Decl, ce);
   },
   SendStmt: (comp, ce) => {
     //attempt to access channel - ensures in scope
