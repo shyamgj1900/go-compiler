@@ -1126,12 +1126,11 @@ const microcode = {
     }
     OS.pop(); // pop fun
 
-    push([], heap_allocate_Callframe(E, PC));
-
     const new_E = heap_Environment_extend(
       new_frame,
       heap_get_Closure_environment(fun)
     );
+    push([], heap_allocate_Callframe(E, PC));
     const new_thread = new ThreadContext(new_E, new_PC);
     context_Q.push(new_thread);
     PC += 1;
@@ -1147,9 +1146,9 @@ const microcode = {
     for (let i = arity - 1; i >= 0; i--) {
       heap_set_child(new_frame, i, OS.pop());
     }
-    push(RTS, heap_allocate_Callframe(E, PC));
     OS.pop(); // pop fun
     E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun));
+    push(RTS, heap_allocate_Callframe(E, PC));
     PC = new_PC;
   },
   TAIL_CALL: (instr) => {
