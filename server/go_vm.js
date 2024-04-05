@@ -564,7 +564,44 @@ const builtin_implementation = {
   },
   sleep: () => {
     const time = OS.pop();
-    blockingSleep(address_to_JS_value(time));
+    if (curr_thread.getSleep() === 0) {
+      // initial sleep condition
+      OS.pop();
+      curr_thread.setE(E);
+      curr_thread.setOS(OS);
+      curr_thread.setRTS(RTS);
+      curr_thread.setSleep(address_to_JS_value(time));
+      curr_thread.setPC(PC - 3);
+      context_Q.push(curr_thread);
+
+      curr_thread = context_Q.shift();
+      OS = curr_thread.OS;
+      PC = curr_thread.PC;
+      RTS = curr_thread.RTS;
+      E = curr_thread.E;
+      OS.push(0);
+      is_context_switch = true;
+    } else if (curr_thread.getSleep() === 1) {
+      // done sleeping
+      curr_thread.setSleep(0);
+    } else {
+      // sleep for the given time
+      curr_thread.setSleep(curr_thread.getSleep() - 1);
+      OS.pop();
+      curr_thread.setE(E);
+      curr_thread.setOS(OS);
+      curr_thread.setRTS(RTS);
+      curr_thread.setPC(PC - 3);
+      context_Q.push(curr_thread);
+
+      curr_thread = context_Q.shift();
+      OS = curr_thread.OS;
+      PC = curr_thread.PC;
+      RTS = curr_thread.RTS;
+      E = curr_thread.E;
+      OS.push(0);
+      is_context_switch = true;
+    }
   },
   error: () => error(address_to_JS_value(OS.pop())),
   is_null: () => (is_Null(OS.pop()) ? True : False),
@@ -573,15 +610,18 @@ const builtin_implementation = {
     const value_index = OS.pop();
     const state = OS.pop();
     if (address_to_JS_value(state)) {
-      const new_thread = new ThreadContext(E, PC - 4, OS, RTS);
-      context_Q.push(new_thread);
+      curr_thread.setE(E);
+      curr_thread.setOS(OS);
+      curr_thread.setRTS(RTS);
+      curr_thread.setPC(PC - 4);
+      context_Q.push(curr_thread);
 
-      const thread = context_Q.shift();
-      OS = thread.OS;
-      PC = thread.PC;
-      RTS = thread.RTS;
-      E = thread.E;
-      OS.push(1);
+      curr_thread = context_Q.shift();
+      OS = curr_thread.OS;
+      PC = curr_thread.PC;
+      RTS = curr_thread.RTS;
+      E = curr_thread.E;
+      OS.push(0);
       is_context_switch = true;
       display("Mutex already locked");
     } else {
@@ -1071,25 +1111,29 @@ const microcode = {
   },
   ENDGO: (instr) => {
     if (context_Q.length != 0) {
-      const thread = context_Q.shift();
-      OS = thread.OS;
-      PC = thread.PC;
-      RTS = thread.RTS;
-      E = thread.E;
+      curr_thread = context_Q.shift();
+      OS = curr_thread.OS;
+      PC = curr_thread.PC;
+      RTS = curr_thread.RTS;
+      E = curr_thread.E;
     }
   },
   SEND: (instr) => {
     // save the value in the current thread's reg
     // block and context switch
-    const new_thread = new ThreadContext(E, PC - 1, OS, RTS);
-    new_thread.channels[instr.name] = instr.value;
-    context_Q.push(new_thread);
+    curr_thread.setE(E);
+    curr_thread.setOS(OS);
+    curr_thread.setRTS(RTS);
+    curr_thread.setPC(PC - 1);
+    curr_thread.setChannels(instr.name, instr.value);
+    context_Q.push(curr_thread);
+
     // context switch
-    const thread = context_Q.shift();
-    OS = thread.OS;
-    PC = thread.PC;
-    RTS = thread.RTS;
-    E = thread.E;
+    curr_thread = context_Q.shift();
+    OS = curr_thread.OS;
+    PC = curr_thread.PC;
+    RTS = curr_thread.RTS;
+    E = curr_thread.E;
   },
   RECV: (instr) => {
     // 1. check context_q if there is exisitng sender alr there (iterate from start of context_q)
@@ -1097,24 +1141,27 @@ const microcode = {
     // 3. if yes, take value from sender, put in own OS
     // 4. unblock the sender by incrementing its PC
     // 5. unblock itself -> dont need to do anything
-    for (const q of context_Q) {
-      if (instr.name in q.channels) {
-        push(OS, JS_value_to_address(q.channels[instr.name]));
-        delete q.channels[instr.name];
-        q.PC++;
+    for (const thread of context_Q) {
+      if (instr.name in thread.channels) {
+        push(OS, JS_value_to_address(thread.channels[instr.name]));
+        delete thread.channels[instr.name];
+        thread.PC++;
         return;
       }
     }
     // Dont have any read value in any channel so block itself
-    const new_thread = new ThreadContext(E, PC - 1, OS, RTS);
-    context_Q.push(new_thread);
+    curr_thread.setE(E);
+    curr_thread.setOS(OS);
+    curr_thread.setRTS(RTS);
+    curr_thread.setPC(PC - 1);
+    context_Q.push(curr_thread);
 
     // context switch
-    const thread = context_Q.shift();
-    OS = thread.OS;
-    PC = thread.PC;
-    RTS = thread.RTS;
-    E = thread.E;
+    curr_thread = context_Q.shift();
+    OS = curr_thread.OS;
+    PC = curr_thread.PC;
+    RTS = curr_thread.RTS;
+    E = curr_thread.E;
   },
   GOCALL: (instr) => {
     const arity = instr.arity;
@@ -1131,7 +1178,9 @@ const microcode = {
       heap_get_Closure_environment(fun)
     );
     push([], heap_allocate_Callframe(E, PC));
-    const new_thread = new ThreadContext(new_E, new_PC);
+    const new_thread = new ThreadContext();
+    new_thread.setE(new_E);
+    new_thread.setPC(new_PC);
     context_Q.push(new_thread);
     PC += 1;
   },
@@ -1171,11 +1220,12 @@ const microcode = {
     // keep popping...
     let top_frame = 0;
     if (RTS.length === 0) {
-      const thread = context_Q.shift();
-      OS = thread.OS;
-      PC = thread.PC;
-      RTS = thread.RTS;
-      E = thread.E;
+      // end of Go routine doesn't have any RTS
+      curr_thread = context_Q.shift();
+      OS = curr_thread.OS;
+      PC = curr_thread.PC;
+      RTS = curr_thread.RTS;
+      E = curr_thread.E;
     } else {
       while (!is_Callframe(top_frame)) {
         top_frame = RTS.pop();
@@ -1188,31 +1238,50 @@ const microcode = {
 
 // initialise thread context Q class
 class ThreadContext {
-  constructor(E, PC, OS, RTS) {
-    if (arguments.length === 1) {
-      this.OS = [];
-      this.PC = 0;
-      this.RTS = [];
-    } else if (arguments.length === 2) {
-      this.OS = [];
-      this.PC = PC;
-      this.RTS = [];
-    } else {
-      this.OS = OS;
-      this.PC = PC;
-      this.RTS = RTS;
-    }
+  constructor() {
+    this.OS = [];
+    this.PC = 0;
+    this.RTS = [];
+    this.E = 0;
     this.channels = {};
+    this.sleep = 0;
+  }
+
+  setPC(PC) {
+    this.PC = PC;
+  }
+
+  setE(E) {
     this.E = E;
   }
 
-  get_channels() {
+  setOS(OS) {
+    this.OS = OS;
+  }
+
+  setRTS(RTS) {
+    this.RTS = RTS;
+  }
+
+  setSleep(time) {
+    this.sleep = time;
+  }
+
+  setChannels(name, value) {
+    this.channels[name] = value;
+  }
+
+  getSleep() {
+    return this.sleep;
+  }
+
+  getChannels() {
     return this.channels;
   }
 }
 
 // running the machine
-
+let curr_thread = new ThreadContext();
 let context_Q = [];
 // set up registers, including free list
 function initialize_machine(heapsize_words) {
@@ -1242,8 +1311,8 @@ function initialize_machine(heapsize_words) {
   E = heap_Environment_extend(builtins_frame, E);
   E = heap_Environment_extend(constants_frame, E);
 
-  const main_thread = new ThreadContext(E);
-  context_Q.push(main_thread);
+  curr_thread.setE(E);
+  context_Q.push(curr_thread);
 
   HEAP_BOTTOM = free;
 }
@@ -1255,7 +1324,7 @@ function run(heapsize_words) {
   let i = 0;
   while (instrs[PC].tag !== "DONE") {
     if (i % switch_freq == 0) {
-      let curr_thread = context_Q.shift();
+      curr_thread = context_Q.shift();
       OS = curr_thread.OS;
       PC = curr_thread.PC;
       RTS = curr_thread.RTS;
@@ -1268,8 +1337,11 @@ function run(heapsize_words) {
     microcode[instr.tag](instr);
 
     if (instr != "ENDGO" && i % switch_freq == 0) {
-      const thread = new ThreadContext(E, PC, OS, RTS);
-      context_Q.push(thread);
+      curr_thread.setE(E);
+      curr_thread.setPC(PC);
+      curr_thread.setOS(OS);
+      curr_thread.setRTS(RTS);
+      context_Q.push(curr_thread);
     }
   }
 }
