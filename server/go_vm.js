@@ -1,6 +1,4 @@
-const { display, parse } = require("sicp");
-
-Object.entries(require("sicp")).forEach(
+Object.entries(require("./utils")).forEach(
   ([name, exported]) => (global[name] = exported)
 );
 
@@ -65,17 +63,6 @@ let heap_size;
 // free is the next free index in the free list
 let free;
 
-// for debugging: display all bits of the heap
-const heap_display = (s) => {
-  display("", "heap: " + s);
-  for (let i = 0; i < heap_size; i++) {
-    display(
-      word_to_string(heap_get(i)),
-      stringify(i) + " " + stringify(heap_get(i)) + " "
-    );
-  }
-};
-
 // heap_allocate allocates a given number of words
 // on the heap and marks the first word with a 1-byte tag.
 // the last two bytes of the first word indicate the number
@@ -94,7 +81,7 @@ const heap_allocate = (tag, size) => {
   // a value of -1 in free indicates the
   // end of the free list
   if (free === -1) {
-    display("GARBAGE COLLECTION");
+    console.log("GARBAGE COLLECTION");
     mark_sweep();
   }
 
@@ -386,14 +373,14 @@ const heap_allocate_Frame = (number_of_values) =>
   heap_allocate(Frame_tag, number_of_values + 1);
 
 const heap_Frame_display = (address) => {
-  display("", "Frame:");
+  console.log("Frame: ");
   const size = heap_get_number_of_children(address);
-  display(size, "frame size:");
+  console.log("frame size: %d", size);
   for (let i = 0; i < size; i++) {
-    display(i, "value address:");
+    console.log("value index: %d", i);
     const value = heap_get_child(address, i);
-    display(value, "value:");
-    display(word_to_string(value), "value word:");
+    console.log("value address: %d", value);
+    console.log("value: %s", address_to_JS_value(value));
   }
 };
 
@@ -441,13 +428,13 @@ const heap_Environment_extend = (frame_address, env_address) => {
   return new_env_address;
 };
 
-// for debuggging: display environment
+// for debuggging: console.log environment
 const heap_Environment_display = (env_address) => {
   const size = heap_get_number_of_children(env_address);
-  display("", "Environment:");
-  display(size, "environment size:");
+  console.log("Environment:");
+  console.log("environment size: %d", size);
   for (let i = 0; i < size; i++) {
-    display(i, "frame index:");
+    console.log("frame index: %d", i);
     const frame = heap_get_child(env_address, i);
     heap_Frame_display(frame);
   }
@@ -558,7 +545,7 @@ let is_context_switch = false;
 const builtin_implementation = {
   println: () => {
     const address = OS.pop();
-    display(address_to_JS_value(address));
+    console.log(address_to_JS_value(address));
     OUTPUTS.push(String(address_to_JS_value(address)));
     return address;
   },
@@ -623,14 +610,14 @@ const builtin_implementation = {
       E = curr_thread.E;
       OS.push(0);
       is_context_switch = true;
-      display("Mutex already locked");
+      console.log("Mutex already locked");
     } else {
       heap_set_Environment_value(
         E,
         [frame_index, value_index],
         JS_value_to_address(true)
       );
-      display("Locking Mutex");
+      console.log("Locking Mutex");
     }
   },
   Unlock: () => {
@@ -643,9 +630,9 @@ const builtin_implementation = {
         [frame_index, value_index],
         JS_value_to_address(false)
       );
-      display("Unlocking Mutex");
+      console.log("Unlocking Mutex");
     } else {
-      display("Mutex already unlocked");
+      console.log("Mutex already unlocked");
       error("Mutex already unlocked");
     }
   },
@@ -659,7 +646,7 @@ const builtin_array = [];
     builtins[key] = {
       tag: "BUILTIN",
       id: i,
-      arity: arity(builtin_implementation[key]),
+      arity: 1,
     };
     builtin_array[i++] = builtin_implementation[key];
   }
@@ -667,14 +654,14 @@ const builtin_array = [];
 
 const constants = {
   undefined: Undefined,
-  math_E: math_E,
-  math_LN10: math_LN10,
-  math_LN2: math_LN2,
-  math_LOG10E: math_LOG10E,
-  math_LOG2E: math_LOG2E,
-  math_PI: math_PI,
-  math_SQRT1_2: math_SQRT1_2,
-  math_SQRT2: math_SQRT2,
+  math_E: Math.E,
+  math_LN10: Math.LN10,
+  math_LN2: Math.LN2,
+  math_LOG10E: Math.LOG10E,
+  math_LOG2E: Math.LOG2E,
+  math_PI: Math.PI,
+  math_SQRT1_2: Math.SQRT1_2,
+  math_SQRT2: Math.SQRT2,
 };
 
 const compile_time_environment_extend = (vs, e) => {
@@ -1281,10 +1268,12 @@ class ThreadContext {
 }
 
 // running the machine
-let curr_thread = new ThreadContext();
-let context_Q = [];
+let curr_thread;
+let context_Q;
 // set up registers, including free list
 function initialize_machine(heapsize_words) {
+  curr_thread = new ThreadContext();
+  context_Q = [];
   OS = [];
   PC = 0;
   RTS = [];
@@ -1347,10 +1336,8 @@ function run(heapsize_words) {
 }
 
 const test = (program, expected, heapsize) => {
-  display(
-    "",
+  console.log(
     `
-
 ****************
 Test case: ` +
       program +
@@ -1358,9 +1345,9 @@ Test case: ` +
   );
   const result = parse_compile_run(program, heapsize);
   if (stringify(result) === stringify(expected)) {
-    display(result, "success with result:");
+    console.log("success with result: %s", result);
   } else {
-    display(expected, "FAILURE! expected:");
+    console.log("FAILURE! expected: %s", expected);
     error(result, "result:");
   }
 };
@@ -1373,6 +1360,7 @@ function compile_and_run(obj) {
   };
   obj.Decls.push(main_call);
   let json_code = { NodeType: "BlockStmt", List: obj.Decls };
+  OUTPUTS = [];
   compile_program(json_code);
   run(1500);
   return OUTPUTS;

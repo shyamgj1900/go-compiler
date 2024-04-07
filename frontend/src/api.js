@@ -1,7 +1,9 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:3000",
+  baseURL: "",
+  // Uncomment to run the backend server locally
+  // baseURL: "http://localhost:3000",
 });
 
 export const executeCode = async (language, sourceCode) => {
