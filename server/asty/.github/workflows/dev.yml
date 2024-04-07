@@ -1,0 +1,37 @@
+name: Tests
+on: [push]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
+      with:
+        go-version-file: 'go.mod'
+    - name: Test
+      run: |
+        make test
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.cov
+        fail_ci_if_error: true
+    - name: Count Lines of Code (cloc)
+      uses: djdefi/cloc-action@2
+
+  build:
+    needs: test
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
+      with:
+        go-version-file: 'go.mod'
+    - name: Build
+      run: |
+        go clean -modcache
+        make
