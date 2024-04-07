@@ -4,9 +4,9 @@ Virtual machine for Golang
 
 ## Description
 
-A built-in compiler which compiles the given golang code into a set of virtual machine instructions. The compiler and
-the VM instructions set interpreter are both written in Javascript. A web based UI to give users the ability to write
-their Go code and an output console to display the results.
+A built-in compiler which compiles the given Go code into a set of virtual machine instructions. The compiler and
+the VM instruction set interpreter are both written in Javascript. A web based UI gives users the ability to write
+their Go code and an output console displays the results.
 
 ## Table of Contents
 
