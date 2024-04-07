@@ -25,14 +25,14 @@ their Go code and an output console displays the results.
 - Go into the frontend directory.
   `cd frontend`
 - To build the image for the frontend.
-  `docker build -t <image-name>-web:latest .`
+  `docker build -t <your-image-name>-web:latest .`
 
 ### Server
 
 - Go into the server directory.
   `cd ../server`
 - To build the image for the server
-  `docker build -t <image-name>-app:latest .`
+  `docker build -t <your-image-name>-app:latest .`
 
 ### Run
 
