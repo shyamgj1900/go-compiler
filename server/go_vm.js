@@ -742,9 +742,13 @@ const compile_comp = {
   UnaryExpr: (comp, ce) => {
     if (comp.Op === "<-") {
       //attempt to access channel - ensure in scope
-      compile({ NodeType: "Ident", Name: comp.X.Name }, ce);
+      // compile({ NodeType: "Ident", Name: comp.X.Name }, ce);
+      instrs[wc++] = {
+        tag: "LD",
+        pos: compile_time_environment_position(ce, comp.X.Name),
+      };
       //POP OS @ RUNTIME to remove chan value
-      instrs[wc++] = { tag: "POP" };
+      // instrs[wc++] = { tag: "POP" };
 
       instrs[wc++] = {
         tag: "RECV",
@@ -862,24 +866,28 @@ const compile_comp = {
   },
   SendStmt: (comp, ce) => {
     //attempt to access channel - ensures in scope
-    compile(comp.Value, ce);
     instrs[wc++] = {
-      tag: "ASSIGN",
+      tag: "LD",
       pos: compile_time_environment_position(ce, comp.Chan.Name),
     };
+    // compile(comp.Value, ce);
+    // instrs[wc++] = {
+    //   tag: "ASSIGN",
+    //   pos: compile_time_environment_position(ce, comp.Chan.Name),
+    // };
     // POP OS @ RUNTIME to remove chan value
-    instrs[wc++] = { tag: "POP" };
+    // instrs[wc++] = { tag: "POP" };
 
     if (comp.Value.Name === "true" || comp.Value.Name === "false") {
       instrs[wc++] = {
         tag: "SEND",
-        name: comp.Chan.Name,
+        pos: compile_time_environment_position(ce, comp.Chan.Name),
         value: comp.Value.Name === "true",
       };
     } else {
       instrs[wc++] = {
         tag: "SEND",
-        name: comp.Chan.Name,
+        pos: compile_time_environment_position(ce, comp.Chan.Name),
         value: Number(comp.Value.Value),
       };
     }
@@ -891,20 +899,27 @@ const compile_comp = {
         comp.Specs[0].Values[0].Fun.Name === "make" &&
         comp.Specs[0].Values[0].Args[0].NodeType === "ChanType"
       ) {
-        compile(
-          {
-            NodeType: "AssignStmt",
-            Lhs: [comp.Specs[0].Names[0]],
-            Tok: "=",
-            Rhs: [
-              {
-                NodeType: "Ident",
-                Name: "false", //some dummy value
-              },
-            ],
-          },
-          ce
-        );
+        instrs[wc++] = {
+          tag: "CHANNEL",
+          pos: compile_time_environment_position(
+            ce,
+            comp.Specs[0].Names[0].Name
+          ),
+        };
+        // compile(
+        //   {
+        //     NodeType: "AssignStmt",
+        //     Lhs: [comp.Specs[0].Names[0]],
+        //     Tok: "=",
+        //     Rhs: [
+        //       {
+        //         NodeType: "Ident",
+        //         Name: "false", //some dummy value
+        //       },
+        //     ],
+        //   },
+        //   ce
+        // );
       } else {
         compile(comp.Specs[0].Values[0], ce);
         instrs[wc++] = {
@@ -1065,6 +1080,7 @@ const allocate_constant_frame = () => {
 // *******
 
 let mutex_table = {};
+let channel_count= 0;
 // machine registers
 let OS; // JS array (stack) of words (Addresses,
 //        word-encoded literals, numbers)
@@ -1101,6 +1117,12 @@ const microcode = {
     push(OS, val);
   },
   ASSIGN: (instr) => heap_set_Environment_value(E, instr.pos, peek(OS, 0)),
+  CHANNEL: (instr) => {
+    const id = channel_count //Object.keys(channel_table).length;
+    channel_count++
+    // channel_table[id] = 0;
+    heap_set_Environment_value(E, instr.pos, id);
+  },
   MUTEX: (instr) => {
     const id = Object.keys(mutex_table).length;
     mutex_table[id] = false;
@@ -1122,11 +1144,13 @@ const microcode = {
   SEND: (instr) => {
     // save the value in the current thread's reg
     // block and context switch
+    const id = OS.pop()
+
     curr_thread.setE(E);
     curr_thread.setOS(OS);
     curr_thread.setRTS(RTS);
     curr_thread.setPC(PC - 1);
-    curr_thread.setChannels(instr.name, instr.value);
+    curr_thread.setChannels(id, instr.value);
     context_Q.push(curr_thread);
 
     // context switch
@@ -1142,10 +1166,11 @@ const microcode = {
     // 3. if yes, take value from sender, put in own OS
     // 4. unblock the sender by incrementing its PC
     // 5. unblock itself -> dont need to do anything
+    const id = OS.pop()
     for (const thread of context_Q) {
-      if (instr.name in thread.channels) {
-        push(OS, JS_value_to_address(thread.channels[instr.name]));
-        delete thread.channels[instr.name];
+      if (id in thread.channels) {
+        push(OS, JS_value_to_address(thread.channels[id]));
+        delete thread.channels[id];
         thread.PC++;
         return;
       }
@@ -1268,8 +1293,8 @@ class ThreadContext {
     this.sleep = time;
   }
 
-  setChannels(name, value) {
-    this.channels[name] = value;
+  setChannels(id, value) {
+    this.channels[id] = value;
   }
 
   getSleep() {
@@ -1288,6 +1313,8 @@ let context_Q;
 function initialize_machine(heapsize_words) {
   curr_thread = new ThreadContext();
   context_Q = [];
+  channel_count = 0;
+  mutex_table = {};
   OS = [];
   PC = 0;
   RTS = [];
