@@ -1080,7 +1080,7 @@ const allocate_constant_frame = () => {
 // *******
 
 let mutex_table = {};
-let channel_count= 0;
+let channel_count = 0;
 // machine registers
 let OS; // JS array (stack) of words (Addresses,
 //        word-encoded literals, numbers)
@@ -1118,8 +1118,9 @@ const microcode = {
   },
   ASSIGN: (instr) => heap_set_Environment_value(E, instr.pos, peek(OS, 0)),
   CHANNEL: (instr) => {
-    const id = channel_count //Object.keys(channel_table).length;
-    channel_count++
+    const id = channel_count; //Object.keys(channel_table).length;
+    channel_count++;
+    OS.push(0);
     // channel_table[id] = 0;
     heap_set_Environment_value(E, instr.pos, id);
   },
@@ -1144,12 +1145,12 @@ const microcode = {
   SEND: (instr) => {
     // save the value in the current thread's reg
     // block and context switch
-    const id = OS.pop()
+    const id = OS.pop();
 
     curr_thread.setE(E);
     curr_thread.setOS(OS);
     curr_thread.setRTS(RTS);
-    curr_thread.setPC(PC - 1);
+    curr_thread.setPC(PC - 2);
     curr_thread.setChannels(id, instr.value);
     context_Q.push(curr_thread);
 
@@ -1166,12 +1167,12 @@ const microcode = {
     // 3. if yes, take value from sender, put in own OS
     // 4. unblock the sender by incrementing its PC
     // 5. unblock itself -> dont need to do anything
-    const id = OS.pop()
+    const id = OS.pop();
     for (const thread of context_Q) {
       if (id in thread.channels) {
         push(OS, JS_value_to_address(thread.channels[id]));
         delete thread.channels[id];
-        thread.PC++;
+        thread.PC += 2;
         return;
       }
     }
@@ -1179,7 +1180,7 @@ const microcode = {
     curr_thread.setE(E);
     curr_thread.setOS(OS);
     curr_thread.setRTS(RTS);
-    curr_thread.setPC(PC - 1);
+    curr_thread.setPC(PC - 2);
     context_Q.push(curr_thread);
 
     // context switch
@@ -1197,7 +1198,7 @@ const microcode = {
     for (let i = arity - 1; i >= 0; i--) {
       heap_set_child(new_frame, i, OS.pop());
     }
-    OS.pop(); // pop fun
+    // OS.pop(); // pop fun
 
     const new_E = heap_Environment_extend(
       new_frame,
@@ -1403,7 +1404,7 @@ function compile_and_run(obj) {
   let json_code = { NodeType: "BlockStmt", List: obj.Decls };
   OUTPUTS = [];
   compile_program(json_code);
-  run(1500);
+  run(15000);
   return OUTPUTS;
 }
 
