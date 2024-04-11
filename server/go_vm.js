@@ -593,10 +593,11 @@ const builtin_implementation = {
   error: () => error(address_to_JS_value(OS.pop())),
   is_null: () => (is_Null(OS.pop()) ? True : False),
   Lock: () => {
-    const frame_index = OS.pop();
-    const value_index = OS.pop();
-    const state = OS.pop();
-    if (address_to_JS_value(state)) {
+    const id = OS.pop()
+    // const frame_index = OS.pop();
+    // const value_index = OS.pop();
+    // const state = OS.pop();
+    if (mutex_table[id]) {
       curr_thread.setE(E);
       curr_thread.setOS(OS);
       curr_thread.setRTS(RTS);
@@ -612,24 +613,27 @@ const builtin_implementation = {
       is_context_switch = true;
       console.log("Mutex already locked");
     } else {
-      heap_set_Environment_value(
-        E,
-        [frame_index, value_index],
-        JS_value_to_address(true)
-      );
+      // heap_set_Environment_value(
+      //   E,
+      //   [frame_index, value_index],
+      //   JS_value_to_address(true)
+      // );
+      mutex_table[id] = true
       console.log("Locking Mutex");
     }
   },
   Unlock: () => {
-    const frame_index = OS.pop();
-    const value_index = OS.pop();
-    const state = OS.pop();
-    if (address_to_JS_value(state)) {
-      heap_set_Environment_value(
-        E,
-        [frame_index, value_index],
-        JS_value_to_address(false)
-      );
+    const id = OS.pop()
+    // const frame_index = OS.pop();
+    // const value_index = OS.pop();
+    // const state = OS.pop();
+    if (mutex_table[id]) {
+      // heap_set_Environment_value(
+      //   E,
+      //   [frame_index, value_index],
+      //   JS_value_to_address(false)
+      // );
+      mutex_table[id] = false
       console.log("Unlocking Mutex");
     } else {
       console.log("Mutex already unlocked");
@@ -790,7 +794,7 @@ const compile_comp = {
       instrs[wc++] = { tag: "CALL", arity: comp.Args.length };
     } else {
       if (comp.Fun.NodeType === "SelectorExpr") {
-        instrs[wc++] = { tag: "CALL", arity: 3 };
+        instrs[wc++] = { tag: "CALL", arity: 1 };
       } else {
         instrs[wc++] = { tag: "CALL", arity: 0 };
       }
@@ -805,11 +809,7 @@ const compile_comp = {
   SelectorExpr: (comp, ce) => {
     compile(comp.Sel, ce);
     compile(comp.X, ce);
-    instrs[wc++] = {
-      tag: "LDADDR",
-      sym: comp.X.Name,
-      pos: compile_time_environment_position(ce, comp.X.Name),
-    };
+    
   },
   GoStmt: (comp, ce) => {
     comp.Call.NodeType = "GoCallExpr";
@@ -916,20 +916,27 @@ const compile_comp = {
       }
     } else if (comp.Specs[0].Type.NodeType === "SelectorExpr") {
       if (comp.Specs[0].Type.Sel.Name === "Mutex") {
-        compile(
-          {
-            NodeType: "AssignStmt",
-            Lhs: [comp.Specs[0].Names[0]],
-            Tok: "=",
-            Rhs: [
-              {
-                NodeType: "Ident",
-                Name: "false",
-              },
-            ],
-          },
-          ce
-        );
+        instrs[wc++] = {
+          tag: "MUTEX",
+          pos: compile_time_environment_position(
+            ce,
+            comp.Specs[0].Names[0].Name
+          ),          
+        }
+        // compile(
+        //   {
+        //     NodeType: "AssignStmt",
+        //     Lhs: [comp.Specs[0].Names[0]],
+        //     Tok: "=",
+        //     Rhs: [
+        //       {
+        //         NodeType: "Ident",
+        //         Name: "false",
+        //       },
+        //     ],
+        //   },
+        //   ce
+        // );
       }
     }
   },
@@ -1056,6 +1063,7 @@ const allocate_constant_frame = () => {
 // machine
 // *******
 
+let mutex_table = {};
 // machine registers
 let OS; // JS array (stack) of words (Addresses,
 //        word-encoded literals, numbers)
@@ -1092,6 +1100,11 @@ const microcode = {
     push(OS, val);
   },
   ASSIGN: (instr) => heap_set_Environment_value(E, instr.pos, peek(OS, 0)),
+  MUTEX: (instr) =>{
+    const id = mutex_table.length
+    mutex_table[id] = false
+    heap_set_Environment_value(E, instr.pos, id)
+  },
   LDF: (instr) => {
     const closure_address = heap_allocate_Closure(instr.arity, instr.addr, E);
     push(OS, closure_address);
