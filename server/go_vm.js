@@ -593,7 +593,7 @@ const builtin_implementation = {
   error: () => error(address_to_JS_value(OS.pop())),
   is_null: () => (is_Null(OS.pop()) ? True : False),
   Lock: () => {
-    const id = OS.pop()
+    const id = OS.pop();
     // const frame_index = OS.pop();
     // const value_index = OS.pop();
     // const state = OS.pop();
@@ -601,7 +601,7 @@ const builtin_implementation = {
       curr_thread.setE(E);
       curr_thread.setOS(OS);
       curr_thread.setRTS(RTS);
-      curr_thread.setPC(PC - 4);
+      curr_thread.setPC(PC - 3);
       context_Q.push(curr_thread);
 
       curr_thread = context_Q.shift();
@@ -618,12 +618,12 @@ const builtin_implementation = {
       //   [frame_index, value_index],
       //   JS_value_to_address(true)
       // );
-      mutex_table[id] = true
+      mutex_table[id] = true;
       console.log("Locking Mutex");
     }
   },
   Unlock: () => {
-    const id = OS.pop()
+    const id = OS.pop();
     // const frame_index = OS.pop();
     // const value_index = OS.pop();
     // const state = OS.pop();
@@ -633,7 +633,7 @@ const builtin_implementation = {
       //   [frame_index, value_index],
       //   JS_value_to_address(false)
       // );
-      mutex_table[id] = false
+      mutex_table[id] = false;
       console.log("Unlocking Mutex");
     } else {
       console.log("Mutex already unlocked");
@@ -750,6 +750,8 @@ const compile_comp = {
         tag: "RECV",
         name: comp.X.Name,
       };
+    } else if (comp.Op === "&") {
+      compile(comp.X, ce);
     } else {
       compile(comp.X, ce);
       instrs[wc++] = { tag: "UNOP", sym: comp.Op };
@@ -809,7 +811,6 @@ const compile_comp = {
   SelectorExpr: (comp, ce) => {
     compile(comp.Sel, ce);
     compile(comp.X, ce);
-    
   },
   GoStmt: (comp, ce) => {
     comp.Call.NodeType = "GoCallExpr";
@@ -921,8 +922,8 @@ const compile_comp = {
           pos: compile_time_environment_position(
             ce,
             comp.Specs[0].Names[0].Name
-          ),          
-        }
+          ),
+        };
         // compile(
         //   {
         //     NodeType: "AssignStmt",
@@ -1100,10 +1101,10 @@ const microcode = {
     push(OS, val);
   },
   ASSIGN: (instr) => heap_set_Environment_value(E, instr.pos, peek(OS, 0)),
-  MUTEX: (instr) =>{
-    const id = mutex_table.length
-    mutex_table[id] = false
-    heap_set_Environment_value(E, instr.pos, id)
+  MUTEX: (instr) => {
+    const id = Object.keys(mutex_table).length;
+    mutex_table[id] = false;
+    heap_set_Environment_value(E, instr.pos, id);
   },
   LDF: (instr) => {
     const closure_address = heap_allocate_Closure(instr.arity, instr.addr, E);
