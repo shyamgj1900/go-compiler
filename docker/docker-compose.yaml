@@ -1,0 +1,22 @@
+version: "3"
+services:
+  web:
+    hostname: web
+    container_name: govirtualmachine-web-container
+    image: govirtualmachine-web:latest
+    ports:
+      - 4200:80
+    volumes:
+      - ./data/nginx.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - govirtualmachine-net
+  app:
+    hostname: app
+    container_name: govirtualmachine-app-container
+    image: govirtualmachine-app:latest
+    ports:
+      - 3000:3000
+    networks:
+      - govirtualmachine-net
+networks:
+  govirtualmachine-net: {}

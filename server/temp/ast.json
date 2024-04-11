@@ -1,0 +1,242 @@
+{
+  "NodeType": "File",
+  "Doc": null,
+  "Package": null,
+  "Name": {
+    "NodeType": "Ident",
+    "Name": "main"
+  },
+  "Decls": [
+    {
+      "NodeType": "GenDecl",
+      "Tok": "var",
+      "Specs": [
+        {
+          "NodeType": "ValueSpec",
+          "Names": [
+            {
+              "NodeType": "Ident",
+              "Name": "ch"
+            }
+          ],
+          "Type": null,
+          "Values": [
+            {
+              "NodeType": "CallExpr",
+              "Fun": {
+                "NodeType": "Ident",
+                "Name": "make"
+              },
+              "Args": [
+                {
+                  "NodeType": "ChanType",
+                  "Dir": "BOTH",
+                  "Value": {
+                    "NodeType": "Ident",
+                    "Name": "int"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "NodeType": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "NodeType": "Ident",
+        "Name": "f"
+      },
+      "Type": {
+        "NodeType": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "NodeType": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "NodeType": "BlockStmt",
+        "List": [
+          {
+            "NodeType": "SendStmt",
+            "Chan": {
+              "NodeType": "Ident",
+              "Name": "ch"
+            },
+            "Value": {
+              "NodeType": "BasicLit",
+              "Kind": "INT",
+              "Value": "2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "NodeType": "FuncDecl",
+      "Recv": null,
+      "Name": {
+        "NodeType": "Ident",
+        "Name": "main"
+      },
+      "Type": {
+        "NodeType": "FuncType",
+        "TypeParams": null,
+        "Params": {
+          "NodeType": "FieldList",
+          "List": null
+        },
+        "Results": null
+      },
+      "Body": {
+        "NodeType": "BlockStmt",
+        "List": [
+          {
+            "NodeType": "DeclStmt",
+            "Decl": {
+              "NodeType": "GenDecl",
+              "Tok": "var",
+              "Specs": [
+                {
+                  "NodeType": "ValueSpec",
+                  "Names": [
+                    {
+                      "NodeType": "Ident",
+                      "Name": "x"
+                    }
+                  ],
+                  "Type": {
+                    "NodeType": "Ident",
+                    "Name": "int"
+                  },
+                  "Values": [
+                    {
+                      "NodeType": "BasicLit",
+                      "Kind": "INT",
+                      "Value": "0"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "NodeType": "AssignStmt",
+            "Lhs": [
+              {
+                "NodeType": "Ident",
+                "Name": "x"
+              }
+            ],
+            "Tok": "=",
+            "Rhs": [
+              {
+                "NodeType": "BinaryExpr",
+                "X": {
+                  "NodeType": "Ident",
+                  "Name": "x"
+                },
+                "Op": "+",
+                "Y": {
+                  "NodeType": "BasicLit",
+                  "Kind": "INT",
+                  "Value": "1"
+                }
+              }
+            ]
+          },
+          {
+            "NodeType": "GoStmt",
+            "Call": {
+              "NodeType": "CallExpr",
+              "Fun": {
+                "NodeType": "Ident",
+                "Name": "f"
+              },
+              "Args": null
+            }
+          },
+          {
+            "NodeType": "DeclStmt",
+            "Decl": {
+              "NodeType": "GenDecl",
+              "Tok": "var",
+              "Specs": [
+                {
+                  "NodeType": "ValueSpec",
+                  "Names": [
+                    {
+                      "NodeType": "Ident",
+                      "Name": "res"
+                    }
+                  ],
+                  "Type": null,
+                  "Values": [
+                    {
+                      "NodeType": "UnaryExpr",
+                      "Op": "<-",
+                      "X": {
+                        "NodeType": "Ident",
+                        "Name": "ch"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "NodeType": "ExprStmt",
+            "X": {
+              "NodeType": "CallExpr",
+              "Fun": {
+                "NodeType": "Ident",
+                "Name": "println"
+              },
+              "Args": [
+                {
+                  "NodeType": "Ident",
+                  "Name": "res"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "Imports": null,
+  "Unresolved": null,
+  "Comments": null,
+  "FileSet": {
+    "Base": 157,
+    "Files": [
+      {
+        "Name": ".\\src_code.go",
+        "Base": 1,
+        "Size": 155,
+        "Lines": [
+          0,
+          14,
+          16,
+          41,
+          43,
+          55,
+          65,
+          68,
+          83,
+          99,
+          111,
+          120,
+          137,
+          152
+        ],
+        "Infos": null
+      }
+    ]
+  }
+}

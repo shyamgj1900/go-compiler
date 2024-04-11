@@ -1,6 +1,4 @@
-const { display, parse } = require("sicp");
-
-Object.entries(require("sicp")).forEach(
+Object.entries(require("./utils")).forEach(
   ([name, exported]) => (global[name] = exported)
 );
 
@@ -20,7 +18,7 @@ function blockingSleep(ms) {
 }
 
 // Output of program
-OUTPUTS = [];
+let OUTPUTS = [];
 
 // **********************
 // using arrays as stacks
@@ -39,16 +37,6 @@ const push = (array, ...items) => {
 // return the last element of given array
 // without changing the array
 const peek = (array, address) => array.slice(-1 - address)[0];
-
-// *************
-// parse to JSON
-// *************/
-
-const list_to_array = (xs) =>
-  is_null(xs) ? [] : [head(xs)].concat(list_to_array(tail(xs)));
-
-// simplify parameter format
-const parameters = (xs) => map((x) => head(tail(x)), xs);
 
 // *************************
 // HEAP
@@ -75,17 +63,6 @@ let heap_size;
 // free is the next free index in the free list
 let free;
 
-// for debugging: display all bits of the heap
-const heap_display = (s) => {
-  display("", "heap: " + s);
-  for (let i = 0; i < heap_size; i++) {
-    display(
-      word_to_string(heap_get(i)),
-      stringify(i) + " " + stringify(heap_get(i)) + " "
-    );
-  }
-};
-
 // heap_allocate allocates a given number of words
 // on the heap and marks the first word with a 1-byte tag.
 // the last two bytes of the first word indicate the number
@@ -104,7 +81,7 @@ const heap_allocate = (tag, size) => {
   // a value of -1 in free indicates the
   // end of the free list
   if (free === -1) {
-    display("GARBAGE COLLECTION");
+    console.log("GARBAGE COLLECTION");
     mark_sweep();
   }
 
@@ -128,14 +105,10 @@ const get_roots = () => {
   let root_os = [...OS];
   let root_E = [E];
   let root_RTS = [...RTS];
-  for (const os of OS_Q) {
-    root_os.push(...os);
-  }
-  for (const e of E_Q) {
-    root_E.push(e);
-  }
-  for (const rts of RTS_Q) {
-    root_RTS.push(...rts);
+  for (const context of context_Q) {
+    root_os.push(...context.OS);
+    root_E.push(context.E);
+    root_RTS.push(...context.RTS);
   }
 
   return [...root_os, ...root_E, ...root_RTS, ...ALLOCATING];
@@ -400,14 +373,14 @@ const heap_allocate_Frame = (number_of_values) =>
   heap_allocate(Frame_tag, number_of_values + 1);
 
 const heap_Frame_display = (address) => {
-  display("", "Frame:");
+  console.log("Frame: ");
   const size = heap_get_number_of_children(address);
-  display(size, "frame size:");
+  console.log("frame size: %d", size);
   for (let i = 0; i < size; i++) {
-    display(i, "value address:");
+    console.log("value index: %d", i);
     const value = heap_get_child(address, i);
-    display(value, "value:");
-    display(word_to_string(value), "value word:");
+    console.log("value address: %d", value);
+    console.log("value: %s", address_to_JS_value(value));
   }
 };
 
@@ -416,8 +389,8 @@ const heap_Frame_display = (address) => {
 //  2 bytes #children, 1 byte unused]
 // followed by the addresses of its frames
 
-const heap_allocate_Environment = (number_of_frames, frame_address = Null) =>
-  heap_allocate(Environment_tag, number_of_frames + 1, frame_address);
+const heap_allocate_Environment = (number_of_frames) =>
+  heap_allocate(Environment_tag, number_of_frames + 1);
 
 // access environment given by address
 // using a "position", i.e. a pair of
@@ -441,7 +414,7 @@ const heap_set_Environment_value = (env_address, position, value) => {
 // environment to the new environment.
 // enter the address of the new frame to end
 // of the new environment
-const heap_Environment_extend = (frame_address, env_address, frame_alloc) => {
+const heap_Environment_extend = (frame_address, env_address) => {
   const old_size = heap_get_size(env_address);
   // modified: should not free frame address and env address here
   ALLOCATING = [frame_address, env_address];
@@ -455,13 +428,13 @@ const heap_Environment_extend = (frame_address, env_address, frame_alloc) => {
   return new_env_address;
 };
 
-// for debuggging: display environment
+// for debuggging: console.log environment
 const heap_Environment_display = (env_address) => {
   const size = heap_get_number_of_children(env_address);
-  display("", "Environment:");
-  display(size, "environment size:");
+  console.log("Environment:");
+  console.log("environment size: %d", size);
   for (let i = 0; i < size; i++) {
-    display(i, "frame index:");
+    console.log("frame index: %d", i);
     const frame = heap_get_child(env_address, i);
     heap_Frame_display(frame);
   }
@@ -572,60 +545,98 @@ let is_context_switch = false;
 const builtin_implementation = {
   println: () => {
     const address = OS.pop();
-    display(address_to_JS_value(address));
+    console.log(address_to_JS_value(address));
     OUTPUTS.push(String(address_to_JS_value(address)));
     return address;
   },
   sleep: () => {
     const time = OS.pop();
-    blockingSleep(address_to_JS_value(time));
+    if (curr_thread.getSleep() === 0) {
+      // initial sleep condition
+      OS.pop();
+      curr_thread.setE(E);
+      curr_thread.setOS(OS);
+      curr_thread.setRTS(RTS);
+      curr_thread.setSleep(address_to_JS_value(time));
+      curr_thread.setPC(PC - 3);
+      context_Q.push(curr_thread);
+
+      curr_thread = context_Q.shift();
+      OS = curr_thread.OS;
+      PC = curr_thread.PC;
+      RTS = curr_thread.RTS;
+      E = curr_thread.E;
+      OS.push(0);
+      is_context_switch = true;
+    } else if (curr_thread.getSleep() === 1) {
+      // done sleeping
+      curr_thread.setSleep(0);
+    } else {
+      // sleep for the given time
+      curr_thread.setSleep(curr_thread.getSleep() - 1);
+      OS.pop();
+      curr_thread.setE(E);
+      curr_thread.setOS(OS);
+      curr_thread.setRTS(RTS);
+      curr_thread.setPC(PC - 3);
+      context_Q.push(curr_thread);
+
+      curr_thread = context_Q.shift();
+      OS = curr_thread.OS;
+      PC = curr_thread.PC;
+      RTS = curr_thread.RTS;
+      E = curr_thread.E;
+      OS.push(0);
+      is_context_switch = true;
+    }
   },
   error: () => error(address_to_JS_value(OS.pop())),
   is_null: () => (is_Null(OS.pop()) ? True : False),
   Lock: () => {
-    const frame_index = OS.pop();
-    const value_index = OS.pop();
-    const state = OS.pop();
-    if (address_to_JS_value(state)) {
-      // OS.pop();
-      OS_Q.push(OS);
-      PC_Q.push(PC - 4);
-      RTS_Q.push(RTS);
-      E_Q.push(E);
+    const id = OS.pop();
+    // const frame_index = OS.pop();
+    // const value_index = OS.pop();
+    // const state = OS.pop();
+    if (mutex_table[id]) {
+      curr_thread.setE(E);
+      curr_thread.setOS(OS);
+      curr_thread.setRTS(RTS);
+      curr_thread.setPC(PC - 3);
+      context_Q.push(curr_thread);
 
-      OS = OS_Q.shift();
-      OS.push(1);
-      PC = PC_Q.shift();
-      RTS = RTS_Q.shift();
-      E = E_Q.shift();
+      curr_thread = context_Q.shift();
+      OS = curr_thread.OS;
+      PC = curr_thread.PC;
+      RTS = curr_thread.RTS;
+      E = curr_thread.E;
+      OS.push(0);
       is_context_switch = true;
-      display("Mutex already locked");
-      // display(address_to_JS_value(mutex_addr));
+      console.log("Mutex already locked");
     } else {
-      // heap_set(mutex_addr, 10);
-      heap_set_Environment_value(
-        E,
-        [frame_index, value_index],
-        JS_value_to_address(true)
-      );
-      display("Locking Mutex");
-      // display(address_to_JS_value(mutex_addr));
+      // heap_set_Environment_value(
+      //   E,
+      //   [frame_index, value_index],
+      //   JS_value_to_address(true)
+      // );
+      mutex_table[id] = true;
+      console.log("Locking Mutex");
     }
   },
   Unlock: () => {
-    const frame_index = OS.pop();
-    const value_index = OS.pop();
-    const state = OS.pop();
-    if (address_to_JS_value(state)) {
-      heap_set_Environment_value(
-        E,
-        [frame_index, value_index],
-        JS_value_to_address(false)
-      );
-      // display(address_to_JS_value(mutex_addr));
-      display("Unlocking Mutex");
+    const id = OS.pop();
+    // const frame_index = OS.pop();
+    // const value_index = OS.pop();
+    // const state = OS.pop();
+    if (mutex_table[id]) {
+      // heap_set_Environment_value(
+      //   E,
+      //   [frame_index, value_index],
+      //   JS_value_to_address(false)
+      // );
+      mutex_table[id] = false;
+      console.log("Unlocking Mutex");
     } else {
-      display("Mutex already unlocked");
+      console.log("Mutex already unlocked");
       error("Mutex already unlocked");
     }
   },
@@ -639,7 +650,7 @@ const builtin_array = [];
     builtins[key] = {
       tag: "BUILTIN",
       id: i,
-      arity: arity(builtin_implementation[key]),
+      arity: 1,
     };
     builtin_array[i++] = builtin_implementation[key];
   }
@@ -647,14 +658,14 @@ const builtin_array = [];
 
 const constants = {
   undefined: Undefined,
-  math_E: math_E,
-  math_LN10: math_LN10,
-  math_LN2: math_LN2,
-  math_LOG10E: math_LOG10E,
-  math_LOG2E: math_LOG2E,
-  math_PI: math_PI,
-  math_SQRT1_2: math_SQRT1_2,
-  math_SQRT2: math_SQRT2,
+  math_E: Math.E,
+  math_LN10: Math.LN10,
+  math_LN2: Math.LN2,
+  math_LOG10E: Math.LOG10E,
+  math_LOG2E: Math.LOG2E,
+  math_PI: Math.PI,
+  math_SQRT1_2: Math.SQRT1_2,
+  math_SQRT2: Math.SQRT2,
 };
 
 const compile_time_environment_extend = (vs, e) => {
@@ -729,8 +740,26 @@ const compile_comp = {
     }
   },
   UnaryExpr: (comp, ce) => {
-    compile(comp.X, ce);
-    instrs[wc++] = { tag: "UNOP", sym: comp.Op };
+    if (comp.Op === "<-") {
+      //attempt to access channel - ensure in scope
+      // compile({ NodeType: "Ident", Name: comp.X.Name }, ce);
+      instrs[wc++] = {
+        tag: "LD",
+        pos: compile_time_environment_position(ce, comp.X.Name),
+      };
+      //POP OS @ RUNTIME to remove chan value
+      // instrs[wc++] = { tag: "POP" };
+
+      instrs[wc++] = {
+        tag: "RECV",
+        name: comp.X.Name,
+      };
+    } else if (comp.Op === "&") {
+      compile(comp.X, ce);
+    } else {
+      compile(comp.X, ce);
+      instrs[wc++] = { tag: "UNOP", sym: comp.Op };
+    }
   },
   BinaryExpr: (comp, ce) => {
     compile(comp.X, ce);
@@ -771,7 +800,7 @@ const compile_comp = {
       instrs[wc++] = { tag: "CALL", arity: comp.Args.length };
     } else {
       if (comp.Fun.NodeType === "SelectorExpr") {
-        instrs[wc++] = { tag: "CALL", arity: 3 };
+        instrs[wc++] = { tag: "CALL", arity: 1 };
       } else {
         instrs[wc++] = { tag: "CALL", arity: 0 };
       }
@@ -786,11 +815,6 @@ const compile_comp = {
   SelectorExpr: (comp, ce) => {
     compile(comp.Sel, ce);
     compile(comp.X, ce);
-    instrs[wc++] = {
-      tag: "LDADDR",
-      sym: comp.X.Name,
-      pos: compile_time_environment_position(ce, comp.X.Name),
-    };
   },
   GoStmt: (comp, ce) => {
     comp.Call.NodeType = "GoCallExpr";
@@ -838,57 +862,97 @@ const compile_comp = {
     instrs[wc++] = { tag: "EXIT_SCOPE" };
   },
   DeclStmt: (comp, ce) => {
-    if (comp.Decl.Specs[0].Values !== null) {
-      compile(comp.Decl.Specs[0].Values[0], ce);
+    compile(comp.Decl, ce);
+  },
+  SendStmt: (comp, ce) => {
+    //attempt to access channel - ensures in scope
+    instrs[wc++] = {
+      tag: "LD",
+      pos: compile_time_environment_position(ce, comp.Chan.Name),
+    };
+    // compile(comp.Value, ce);
+    // instrs[wc++] = {
+    //   tag: "ASSIGN",
+    //   pos: compile_time_environment_position(ce, comp.Chan.Name),
+    // };
+    // POP OS @ RUNTIME to remove chan value
+    // instrs[wc++] = { tag: "POP" };
+
+    if (comp.Value.Name === "true" || comp.Value.Name === "false") {
       instrs[wc++] = {
-        tag: "ASSIGN",
-        pos: compile_time_environment_position(
-          ce,
-          comp.Decl.Specs[0].Names[0].Name
-        ),
+        tag: "SEND",
+        pos: compile_time_environment_position(ce, comp.Chan.Name),
+        value: comp.Value.Name === "true",
       };
-    } else if (comp.Decl.Specs[0].Type.NodeType === "SelectorExpr") {
-      if (comp.Decl.Specs[0].Type.Sel.Name === "Mutex") {
-        compile(
-          {
-            NodeType: "AssignStmt",
-            Lhs: [comp.Decl.Specs[0].Names[0]],
-            Tok: "=",
-            Rhs: [
-              {
-                NodeType: "Ident",
-                Name: "false",
-              },
-            ],
-          },
-          ce
-        );
-      }
+    } else {
+      instrs[wc++] = {
+        tag: "SEND",
+        pos: compile_time_environment_position(ce, comp.Chan.Name),
+        value: Number(comp.Value.Value),
+      };
     }
   },
   GenDecl: (comp, ce) => {
     if (comp.Specs[0].Values !== null) {
-      compile(comp.Specs[0].Values[0], ce);
-      instrs[wc++] = {
-        tag: "ASSIGN",
-        pos: compile_time_environment_position(ce, comp.Specs[0].Names[0].Name),
-      };
+      if (
+        comp.Specs[0].Values[0].NodeType === "CallExpr" &&
+        comp.Specs[0].Values[0].Fun.Name === "make" &&
+        comp.Specs[0].Values[0].Args[0].NodeType === "ChanType"
+      ) {
+        instrs[wc++] = {
+          tag: "CHANNEL",
+          pos: compile_time_environment_position(
+            ce,
+            comp.Specs[0].Names[0].Name
+          ),
+        };
+        // compile(
+        //   {
+        //     NodeType: "AssignStmt",
+        //     Lhs: [comp.Specs[0].Names[0]],
+        //     Tok: "=",
+        //     Rhs: [
+        //       {
+        //         NodeType: "Ident",
+        //         Name: "false", //some dummy value
+        //       },
+        //     ],
+        //   },
+        //   ce
+        // );
+      } else {
+        compile(comp.Specs[0].Values[0], ce);
+        instrs[wc++] = {
+          tag: "ASSIGN",
+          pos: compile_time_environment_position(
+            ce,
+            comp.Specs[0].Names[0].Name
+          ),
+        };
+      }
     } else if (comp.Specs[0].Type.NodeType === "SelectorExpr") {
       if (comp.Specs[0].Type.Sel.Name === "Mutex") {
-        compile(
-          {
-            NodeType: "AssignStmt",
-            Lhs: [comp.Specs[0].Names[0]],
-            Tok: "=",
-            Rhs: [
-              {
-                NodeType: "Ident",
-                Name: "false",
-              },
-            ],
-          },
-          ce
-        );
+        instrs[wc++] = {
+          tag: "MUTEX",
+          pos: compile_time_environment_position(
+            ce,
+            comp.Specs[0].Names[0].Name
+          ),
+        };
+        // compile(
+        //   {
+        //     NodeType: "AssignStmt",
+        //     Lhs: [comp.Specs[0].Names[0]],
+        //     Tok: "=",
+        //     Rhs: [
+        //       {
+        //         NodeType: "Ident",
+        //         Name: "false",
+        //       },
+        //     ],
+        //   },
+        //   ce
+        // );
       }
     }
   },
@@ -944,13 +1008,11 @@ const compile_program = (program) => {
 // **********************
 // operators and builtins
 // **********************/
-// os: [0, 100]
 const binop_microcode = {
   "+": (x, y) =>
     (is_number(x) && is_number(y)) || (is_string(x) && is_string(y))
       ? x + y
       : error([x, y], "+ expects two numbers" + " or two strings, got:"),
-  // todo: add error handling to JS for the following, too
   "*": (x, y) => x * y,
   "-": (x, y) => x - y,
   "/": (x, y) => x / y,
@@ -1017,17 +1079,14 @@ const allocate_constant_frame = () => {
 // machine
 // *******
 
+let mutex_table = {};
+let channel_count = 0;
 // machine registers
 let OS; // JS array (stack) of words (Addresses,
 //        word-encoded literals, numbers)
 let PC; // JS number
 let E; // heap Address
 let RTS; // JS array (stack) of Addresses
-
-let OS_Q;
-let PC_Q;
-let RTS_Q;
-let E_Q;
 
 HEAP; // (declared above already)
 
@@ -1054,22 +1113,82 @@ const microcode = {
   },
   LD: (instr) => {
     const val = heap_get_Environment_value(E, instr.pos);
-    // console.log(address_to_JS_value(val) + " " + instr.pos);
     if (is_Unassigned(val)) error("access of unassigned variable");
     push(OS, val);
   },
   ASSIGN: (instr) => heap_set_Environment_value(E, instr.pos, peek(OS, 0)),
+  CHANNEL: (instr) => {
+    const id = channel_count; //Object.keys(channel_table).length;
+    channel_count++;
+    OS.push(0);
+    // channel_table[id] = 0;
+    heap_set_Environment_value(E, instr.pos, id);
+  },
+  MUTEX: (instr) => {
+    const id = Object.keys(mutex_table).length;
+    mutex_table[id] = false;
+    heap_set_Environment_value(E, instr.pos, id);
+  },
   LDF: (instr) => {
     const closure_address = heap_allocate_Closure(instr.arity, instr.addr, E);
     push(OS, closure_address);
   },
   ENDGO: (instr) => {
-    if (OS_Q.length != 0) {
-      OS = OS_Q.shift();
-      PC = PC_Q.shift();
-      RTS = RTS_Q.shift();
-      E = E_Q.shift();
+    if (context_Q.length != 0) {
+      curr_thread = context_Q.shift();
+      OS = curr_thread.OS;
+      PC = curr_thread.PC;
+      RTS = curr_thread.RTS;
+      E = curr_thread.E;
     }
+  },
+  SEND: (instr) => {
+    // save the value in the current thread's reg
+    // block and context switch
+    const id = OS.pop();
+
+    curr_thread.setE(E);
+    curr_thread.setOS(OS);
+    curr_thread.setRTS(RTS);
+    curr_thread.setPC(PC - 2);
+    curr_thread.setChannels(id, instr.value);
+    context_Q.push(curr_thread);
+
+    // context switch
+    curr_thread = context_Q.shift();
+    OS = curr_thread.OS;
+    PC = curr_thread.PC;
+    RTS = curr_thread.RTS;
+    E = curr_thread.E;
+  },
+  RECV: (instr) => {
+    // 1. check context_q if there is exisitng sender alr there (iterate from start of context_q)
+    // 2. if not, block itself i.e. just push itself to context q, ensure PC is at same instr s.t. check for corresponging send next time
+    // 3. if yes, take value from sender, put in own OS
+    // 4. unblock the sender by incrementing its PC
+    // 5. unblock itself -> dont need to do anything
+    const id = OS.pop();
+    for (const thread of context_Q) {
+      if (id in thread.channels) {
+        push(OS, JS_value_to_address(thread.channels[id]));
+        delete thread.channels[id];
+        thread.PC += 2;
+        return;
+      }
+    }
+    // Dont have any read value in any channel so block itself
+    curr_thread.setE(E);
+    curr_thread.setOS(OS);
+    curr_thread.setRTS(RTS);
+    curr_thread.setPC(PC - 2);
+    context_Q.push(curr_thread);
+
+    // context switch
+    curr_thread = context_Q.shift();
+    OS = curr_thread.OS;
+    PC = curr_thread.PC;
+    RTS = curr_thread.RTS;
+    E = curr_thread.E;
   },
   GOCALL: (instr) => {
     const arity = instr.arity;
@@ -1079,20 +1198,17 @@ const microcode = {
     for (let i = arity - 1; i >= 0; i--) {
       heap_set_child(new_frame, i, OS.pop());
     }
-    OS.pop(); // pop fun
+    // OS.pop(); // pop fun
 
-    let new_thread_OS = [];
-    OS_Q.push(new_thread_OS);
-    let new_thread_RTS = [];
-    push(new_thread_RTS, heap_allocate_Callframe(E, PC));
-    RTS_Q.push(new_thread_RTS);
-
-    new_E = heap_Environment_extend(
+    const new_E = heap_Environment_extend(
       new_frame,
       heap_get_Closure_environment(fun)
     );
-    E_Q.push(new_E);
-    PC_Q.push(new_PC);
+    push([], heap_allocate_Callframe(E, PC));
+    const new_thread = new ThreadContext();
+    new_thread.setE(new_E);
+    new_thread.setPC(new_PC);
+    context_Q.push(new_thread);
     PC += 1;
   },
   CALL: (instr) => {
@@ -1106,9 +1222,9 @@ const microcode = {
     for (let i = arity - 1; i >= 0; i--) {
       heap_set_child(new_frame, i, OS.pop());
     }
-    push(RTS, heap_allocate_Callframe(E, PC));
     OS.pop(); // pop fun
     E = heap_Environment_extend(new_frame, heap_get_Closure_environment(fun));
+    push(RTS, heap_allocate_Callframe(E, PC));
     PC = new_PC;
   },
   TAIL_CALL: (instr) => {
@@ -1130,28 +1246,80 @@ const microcode = {
   RESET: (instr) => {
     // keep popping...
     let top_frame = 0;
-    while (!is_Callframe(top_frame)) {
-      top_frame = RTS.pop();
+    if (RTS.length === 0) {
+      // end of Go routine doesn't have any RTS
+      curr_thread = context_Q.shift();
+      OS = curr_thread.OS;
+      PC = curr_thread.PC;
+      RTS = curr_thread.RTS;
+      E = curr_thread.E;
+    } else {
+      while (!is_Callframe(top_frame)) {
+        top_frame = RTS.pop();
+      }
+      E = heap_get_Callframe_environment(top_frame);
+      PC = heap_get_Callframe_pc(top_frame);
     }
-    E = heap_get_Callframe_environment(top_frame);
-    PC = heap_get_Callframe_pc(top_frame);
   },
 };
 
-// running the machine
+// initialise thread context Q class
+class ThreadContext {
+  constructor() {
+    this.OS = [];
+    this.PC = 0;
+    this.RTS = [];
+    this.E = 0;
+    this.channels = {};
+    this.sleep = 0;
+  }
 
+  setPC(PC) {
+    this.PC = PC;
+  }
+
+  setE(E) {
+    this.E = E;
+  }
+
+  setOS(OS) {
+    this.OS = OS;
+  }
+
+  setRTS(RTS) {
+    this.RTS = RTS;
+  }
+
+  setSleep(time) {
+    this.sleep = time;
+  }
+
+  setChannels(id, value) {
+    this.channels[id] = value;
+  }
+
+  getSleep() {
+    return this.sleep;
+  }
+
+  getChannels() {
+    return this.channels;
+  }
+}
+
+// running the machine
+let curr_thread;
+let context_Q;
 // set up registers, including free list
 function initialize_machine(heapsize_words) {
-  OS_Q = [];
-  PC_Q = [];
-  RTS_Q = [];
-  E_Q = [];
-
+  curr_thread = new ThreadContext();
+  context_Q = [];
+  channel_count = 0;
+  mutex_table = {};
   OS = [];
   PC = 0;
   RTS = [];
 
-  // modified
   ALLOCATING = [];
   HEAP_BOTTOM = undefined; // the initial bottom is unknown
 
@@ -1167,25 +1335,15 @@ function initialize_machine(heapsize_words) {
   // the empty free list is represented by -1
   heap_set(i - node_size, -1);
   free = 0;
-  // PC = 0;
   allocate_literal_values();
-  // display(free)
   const builtins_frame = allocate_builtin_frame();
-  // display(free)
   const constants_frame = allocate_constant_frame();
-  // display(free)
   E = heap_allocate_Environment(0);
-  // display(free)
   E = heap_Environment_extend(builtins_frame, E);
-  // display(free)
   E = heap_Environment_extend(constants_frame, E);
-  // display(free)
-  // modified
 
-  OS_Q.push(OS);
-  PC_Q.push(PC);
-  RTS_Q.push(RTS);
-  E_Q.push(E);
+  curr_thread.setE(E);
+  context_Q.push(curr_thread);
 
   HEAP_BOTTOM = free;
 }
@@ -1197,10 +1355,11 @@ function run(heapsize_words) {
   let i = 0;
   while (instrs[PC].tag !== "DONE") {
     if (i % switch_freq == 0) {
-      OS = OS_Q.shift();
-      PC = PC_Q.shift();
-      RTS = RTS_Q.shift();
-      E = E_Q.shift();
+      curr_thread = context_Q.shift();
+      OS = curr_thread.OS;
+      PC = curr_thread.PC;
+      RTS = curr_thread.RTS;
+      E = curr_thread.E;
     }
 
     i += 1;
@@ -1209,20 +1368,18 @@ function run(heapsize_words) {
     microcode[instr.tag](instr);
 
     if (instr != "ENDGO" && i % switch_freq == 0) {
-      OS_Q.push(OS);
-      PC_Q.push(PC);
-      RTS_Q.push(RTS);
-      E_Q.push(E);
+      curr_thread.setE(E);
+      curr_thread.setPC(PC);
+      curr_thread.setOS(OS);
+      curr_thread.setRTS(RTS);
+      context_Q.push(curr_thread);
     }
   }
-  // return address_to_JS_value(peek(OS, 0));
 }
 
 const test = (program, expected, heapsize) => {
-  display(
-    "",
+  console.log(
     `
-
 ****************
 Test case: ` +
       program +
@@ -1230,9 +1387,9 @@ Test case: ` +
   );
   const result = parse_compile_run(program, heapsize);
   if (stringify(result) === stringify(expected)) {
-    display(result, "success with result:");
+    console.log("success with result: %s", result);
   } else {
-    display(expected, "FAILURE! expected:");
+    console.log("FAILURE! expected: %s", expected);
     error(result, "result:");
   }
 };
@@ -1244,10 +1401,10 @@ function compile_and_run(obj) {
     Args: [],
   };
   obj.Decls.push(main_call);
-  json_code = { NodeType: "BlockStmt", List: obj.Decls };
-  // console.log(json_code);
+  let json_code = { NodeType: "BlockStmt", List: obj.Decls };
+  OUTPUTS = [];
   compile_program(json_code);
-  run(1300);
+  run(15000);
   return OUTPUTS;
 }
 
