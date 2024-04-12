@@ -24,6 +24,12 @@ const push = (array, ...items) => {
   return array;
 };
 
+// Error handling
+const error = (message) => {
+  OUTPUTS.push(message);
+  PC = instrs.length - 1;
+};
+
 // return the last element of given array
 // without changing the array
 const peek = (array, address) => array.slice(-1 - address)[0];
@@ -66,7 +72,7 @@ const node_size = 10;
 
 const heap_allocate = (tag, size) => {
   if (size > node_size) {
-    Error("limitation: nodes cannot be larger than 10 words");
+    error("Error: limitation, nodes cannot be larger than 10 words");
   }
   // a value of -1 in free indicates the
   // end of the free list
@@ -114,7 +120,7 @@ const mark_sweep = () => {
   sweep();
 
   if (free === -1) {
-    Error("heap memory exhausted");
+    error("heap memory exhausted");
     // or Error("out of memory")
   }
 };
@@ -614,7 +620,7 @@ const builtin_implementation = {
       console.log("Unlocking Mutex");
     } else {
       console.log("Mutex already unlocked");
-      Error("Mutex already unlocked");
+      error("Error: Mutex already unlocked");
     }
   },
 };
@@ -719,7 +725,6 @@ const compile_comp = {
   UnaryExpr: (comp, ce) => {
     if (comp.Op === "<-") {
       //attempt to access channel - ensure in scope
-      // compile({ NodeType: "Ident", Name: comp.X.Name }, ce);
       instrs[wc++] = {
         tag: "LD",
         pos: compile_time_environment_position(ce, comp.X.Name),
@@ -951,7 +956,7 @@ const binop_microcode = {
   "+": (x, y) =>
     (is_number(x) && is_number(y)) || (is_string(x) && is_string(y))
       ? x + y
-      : Error([x, y], "+ expects two numbers" + " or two strings, got:"),
+      : error(`+ expects two numbers or two strings, got: ${x}, ${y}`),
   "*": (x, y) => x * y,
   "-": (x, y) => x - y,
   "/": (x, y) => x / y,
@@ -1052,7 +1057,7 @@ const microcode = {
   },
   LD: (instr) => {
     const val = heap_get_Environment_value(E, instr.pos);
-    if (is_Unassigned(val)) Error("access of unassigned variable");
+    if (is_Unassigned(val)) error("Error: access of unassigned variable");
     push(OS, val);
   },
   ASSIGN: (instr) => heap_set_Environment_value(E, instr.pos, peek(OS, 0)),
@@ -1317,23 +1322,6 @@ function run(heapsize_words) {
     }
   }
 }
-
-const test = (program, expected, heapsize) => {
-  console.log(
-    `
-****************
-Test case: ` +
-      program +
-      "\n"
-  );
-  const result = parse_compile_run(program, heapsize);
-  if (stringify(result) === stringify(expected)) {
-    console.log("success with result: %s", result);
-  } else {
-    console.log("FAILURE! expected: %s", expected);
-    Error(result, "result:");
-  }
-};
 
 function compile_and_run(obj) {
   let main_call = {
