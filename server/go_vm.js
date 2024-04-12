@@ -7,16 +7,6 @@ Object.entries(require("./utils")).forEach(
 // set up for mark-and-sweep garbage collection
 // ************************************************************/
 
-// Implement Sleep
-// const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-function blockingSleep(ms) {
-  const startTime = new Date().getTime();
-  let currentTime = null;
-  do {
-    currentTime = new Date().getTime();
-  } while (currentTime - startTime < ms);
-}
-
 // Output of program
 let OUTPUTS = [];
 
@@ -76,7 +66,7 @@ const node_size = 10;
 
 const heap_allocate = (tag, size) => {
   if (size > node_size) {
-    error("limitation: nodes cannot be larger than 10 words");
+    Error("limitation: nodes cannot be larger than 10 words");
   }
   // a value of -1 in free indicates the
   // end of the free list
@@ -124,8 +114,8 @@ const mark_sweep = () => {
   sweep();
 
   if (free === -1) {
-    error("heap memory exhausted");
-    // or error("out of memory")
+    Error("heap memory exhausted");
+    // or Error("out of memory")
   }
 };
 
@@ -590,20 +580,18 @@ const builtin_implementation = {
       is_context_switch = true;
     }
   },
-  error: () => error(address_to_JS_value(OS.pop())),
-  is_null: () => (is_Null(OS.pop()) ? True : False),
   Lock: () => {
     const id = OS.pop();
-    // const frame_index = OS.pop();
-    // const value_index = OS.pop();
-    // const state = OS.pop();
     if (mutex_table[id]) {
+      // block current thread
       curr_thread.setE(E);
       curr_thread.setOS(OS);
       curr_thread.setRTS(RTS);
+      // reset PC to reload the instruction
       curr_thread.setPC(PC - 3);
       context_Q.push(curr_thread);
 
+      // context switch
       curr_thread = context_Q.shift();
       OS = curr_thread.OS;
       PC = curr_thread.PC;
@@ -613,31 +601,20 @@ const builtin_implementation = {
       is_context_switch = true;
       console.log("Mutex already locked");
     } else {
-      // heap_set_Environment_value(
-      //   E,
-      //   [frame_index, value_index],
-      //   JS_value_to_address(true)
-      // );
+      // lock mutex
       mutex_table[id] = true;
       console.log("Locking Mutex");
     }
   },
   Unlock: () => {
     const id = OS.pop();
-    // const frame_index = OS.pop();
-    // const value_index = OS.pop();
-    // const state = OS.pop();
     if (mutex_table[id]) {
-      // heap_set_Environment_value(
-      //   E,
-      //   [frame_index, value_index],
-      //   JS_value_to_address(false)
-      // );
+      // unlock mutex
       mutex_table[id] = false;
       console.log("Unlocking Mutex");
     } else {
       console.log("Mutex already unlocked");
-      error("Mutex already unlocked");
+      Error("Mutex already unlocked");
     }
   },
 };
@@ -747,8 +724,6 @@ const compile_comp = {
         tag: "LD",
         pos: compile_time_environment_position(ce, comp.X.Name),
       };
-      //POP OS @ RUNTIME to remove chan value
-      // instrs[wc++] = { tag: "POP" };
 
       instrs[wc++] = {
         tag: "RECV",
@@ -870,14 +845,6 @@ const compile_comp = {
       tag: "LD",
       pos: compile_time_environment_position(ce, comp.Chan.Name),
     };
-    // compile(comp.Value, ce);
-    // instrs[wc++] = {
-    //   tag: "ASSIGN",
-    //   pos: compile_time_environment_position(ce, comp.Chan.Name),
-    // };
-    // POP OS @ RUNTIME to remove chan value
-    // instrs[wc++] = { tag: "POP" };
-
     if (comp.Value.Name === "true" || comp.Value.Name === "false") {
       instrs[wc++] = {
         tag: "SEND",
@@ -906,20 +873,6 @@ const compile_comp = {
             comp.Specs[0].Names[0].Name
           ),
         };
-        // compile(
-        //   {
-        //     NodeType: "AssignStmt",
-        //     Lhs: [comp.Specs[0].Names[0]],
-        //     Tok: "=",
-        //     Rhs: [
-        //       {
-        //         NodeType: "Ident",
-        //         Name: "false", //some dummy value
-        //       },
-        //     ],
-        //   },
-        //   ce
-        // );
       } else {
         compile(comp.Specs[0].Values[0], ce);
         instrs[wc++] = {
@@ -939,20 +892,6 @@ const compile_comp = {
             comp.Specs[0].Names[0].Name
           ),
         };
-        // compile(
-        //   {
-        //     NodeType: "AssignStmt",
-        //     Lhs: [comp.Specs[0].Names[0]],
-        //     Tok: "=",
-        //     Rhs: [
-        //       {
-        //         NodeType: "Ident",
-        //         Name: "false",
-        //       },
-        //     ],
-        //   },
-        //   ce
-        // );
       }
     }
   },
@@ -1012,7 +951,7 @@ const binop_microcode = {
   "+": (x, y) =>
     (is_number(x) && is_number(y)) || (is_string(x) && is_string(y))
       ? x + y
-      : error([x, y], "+ expects two numbers" + " or two strings, got:"),
+      : Error([x, y], "+ expects two numbers" + " or two strings, got:"),
   "*": (x, y) => x * y,
   "-": (x, y) => x - y,
   "/": (x, y) => x / y,
@@ -1113,15 +1052,14 @@ const microcode = {
   },
   LD: (instr) => {
     const val = heap_get_Environment_value(E, instr.pos);
-    if (is_Unassigned(val)) error("access of unassigned variable");
+    if (is_Unassigned(val)) Error("access of unassigned variable");
     push(OS, val);
   },
   ASSIGN: (instr) => heap_set_Environment_value(E, instr.pos, peek(OS, 0)),
   CHANNEL: (instr) => {
-    const id = channel_count; //Object.keys(channel_table).length;
+    const id = channel_count;
     channel_count++;
     OS.push(0);
-    // channel_table[id] = 0;
     heap_set_Environment_value(E, instr.pos, id);
   },
   MUTEX: (instr) => {
@@ -1150,6 +1088,7 @@ const microcode = {
     curr_thread.setE(E);
     curr_thread.setOS(OS);
     curr_thread.setRTS(RTS);
+    // reset PC to reload same instr
     curr_thread.setPC(PC - 2);
     curr_thread.setChannels(id, instr.value);
     context_Q.push(curr_thread);
@@ -1172,6 +1111,7 @@ const microcode = {
       if (id in thread.channels) {
         push(OS, JS_value_to_address(thread.channels[id]));
         delete thread.channels[id];
+        // unblock sender
         thread.PC += 2;
         return;
       }
@@ -1180,6 +1120,7 @@ const microcode = {
     curr_thread.setE(E);
     curr_thread.setOS(OS);
     curr_thread.setRTS(RTS);
+    // reset PC to reload same instr
     curr_thread.setPC(PC - 2);
     context_Q.push(curr_thread);
 
@@ -1390,7 +1331,7 @@ Test case: ` +
     console.log("success with result: %s", result);
   } else {
     console.log("FAILURE! expected: %s", expected);
-    error(result, "result:");
+    Error(result, "result:");
   }
 };
 
