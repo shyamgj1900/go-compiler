@@ -1,4 +1,4 @@
-# Project Name
+# Project
 
 Virtual machine for Golang
 
@@ -12,8 +12,6 @@ their Go code and an output console displays the results.
 
 - [Installation](#installation)
 - [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
 - [Contact](#contact)
 
 ## Installation
@@ -25,14 +23,14 @@ their Go code and an output console displays the results.
 - Go into the frontend directory.
   `cd frontend`
 - To build the image for the frontend.
-  `docker build -t <your-image-name>-web:latest .`
+  `docker build -t govirtualmachine-web:latest .`
 
 ### Server
 
 - Go into the server directory.
   `cd ../server`
 - To build the image for the server
-  `docker build -t <your-image-name>-app:latest .`
+  `docker build -t govirtualmachine-app:latest .`
 
 ### Run
 
@@ -45,15 +43,7 @@ their Go code and an output console displays the results.
 
 To access the web UI, go to a browser of your choice and access http://localhost:4200
 
-## Contributing
-
-Guidelines for contributing to the project and how to submit pull requests.
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
 ## Contact
 
-- Your Name: [Your Name](mailto:your-email@example.com)
-- Project Link: [Project Name](https://github.com/your-username/project-name)
+- Name: [Shyam Ganesh](mailto:e0544484@u.nus.edu)
+- Project Link: [Go virtual machine](https://github.com/shyamgj1900/go-virtual-machine/tree/master)
