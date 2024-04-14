@@ -27,7 +27,6 @@ let OUTPUTS = [];
 // add values destructively to the end of
 // given array; return the array
 const push = (array, ...items) => {
-  // fixed by Liew Zhao Wei, see Discussion 5
   for (let item of items) {
     array.push(item);
   }
@@ -37,6 +36,12 @@ const push = (array, ...items) => {
 // return the last element of given array
 // without changing the array
 const peek = (array, address) => array.slice(-1 - address)[0];
+
+// Error message
+const error = (message) => {
+  OUTPUTS.push(message);
+  PC = instrs.length - 1;
+};
 
 // *************************
 // HEAP
@@ -595,9 +600,6 @@ const builtin_implementation = {
   is_null: () => (is_Null(OS.pop()) ? True : False),
   Lock: () => {
     const id = OS.pop();
-    // const frame_index = OS.pop();
-    // const value_index = OS.pop();
-    // const state = OS.pop();
     if (mutex_table[id]) {
       curr_thread.setE(E);
       curr_thread.setOS(OS);
@@ -614,26 +616,13 @@ const builtin_implementation = {
       is_context_switch = true;
       console.log("Mutex already locked");
     } else {
-      // heap_set_Environment_value(
-      //   E,
-      //   [frame_index, value_index],
-      //   JS_value_to_address(true)
-      // );
       mutex_table[id] = true;
       console.log("Locking Mutex");
     }
   },
   Unlock: () => {
     const id = OS.pop();
-    // const frame_index = OS.pop();
-    // const value_index = OS.pop();
-    // const state = OS.pop();
     if (mutex_table[id]) {
-      // heap_set_Environment_value(
-      //   E,
-      //   [frame_index, value_index],
-      //   JS_value_to_address(false)
-      // );
       mutex_table[id] = false;
       console.log("Unlocking Mutex");
     } else {
@@ -743,13 +732,10 @@ const compile_comp = {
   UnaryExpr: (comp, ce) => {
     if (comp.Op === "<-") {
       //attempt to access channel - ensure in scope
-      // compile({ NodeType: "Ident", Name: comp.X.Name }, ce);
       instrs[wc++] = {
         tag: "LD",
         pos: compile_time_environment_position(ce, comp.X.Name),
       };
-      //POP OS @ RUNTIME to remove chan value
-      // instrs[wc++] = { tag: "POP" };
 
       instrs[wc++] = {
         tag: "RECV",
@@ -820,7 +806,6 @@ const compile_comp = {
   GoStmt: (comp, ce) => {
     comp.Call.NodeType = "GoCallExpr";
     compile(comp.Call, ce);
-    // instrs[wc++] = { tag: "ENDGO" };
   },
   GoCallExpr: (comp, ce) => {
     compile(comp.Fun, ce);
@@ -871,13 +856,6 @@ const compile_comp = {
       tag: "LD",
       pos: compile_time_environment_position(ce, comp.Chan.Name),
     };
-    // compile(comp.Value, ce);
-    // instrs[wc++] = {
-    //   tag: "ASSIGN",
-    //   pos: compile_time_environment_position(ce, comp.Chan.Name),
-    // };
-    // POP OS @ RUNTIME to remove chan value
-    // instrs[wc++] = { tag: "POP" };
     let curr_wc = wc;
     compile(comp.Value, ce);
     let next_wc = wc;
@@ -901,20 +879,6 @@ const compile_comp = {
             comp.Specs[0].Names[0].Name
           ),
         };
-        // compile(
-        //   {
-        //     NodeType: "AssignStmt",
-        //     Lhs: [comp.Specs[0].Names[0]],
-        //     Tok: "=",
-        //     Rhs: [
-        //       {
-        //         NodeType: "Ident",
-        //         Name: "false", //some dummy value
-        //       },
-        //     ],
-        //   },
-        //   ce
-        // );
       } else {
         compile(comp.Specs[0].Values[0], ce);
         instrs[wc++] = {
@@ -934,20 +898,6 @@ const compile_comp = {
             comp.Specs[0].Names[0].Name
           ),
         };
-        // compile(
-        //   {
-        //     NodeType: "AssignStmt",
-        //     Lhs: [comp.Specs[0].Names[0]],
-        //     Tok: "=",
-        //     Rhs: [
-        //       {
-        //         NodeType: "Ident",
-        //         Name: "false",
-        //       },
-        //     ],
-        //   },
-        //   ce
-        // );
       }
     }
   },
@@ -1007,7 +957,7 @@ const binop_microcode = {
   "+": (x, y) =>
     (is_number(x) && is_number(y)) || (is_string(x) && is_string(y))
       ? x + y
-      : error([x, y], "+ expects two numbers" + " or two strings, got:"),
+      : error(`operand types not supported for +: ${x}, ${y}`),
   "*": (x, y) => x * y,
   "-": (x, y) => x - y,
   "/": (x, y) => x / y,
@@ -1202,7 +1152,7 @@ const microcode = {
       new_frame,
       heap_get_Closure_environment(fun)
     );
-    push([], heap_allocate_Callframe(E, PC));
+    // push([], heap_allocate_Callframe(E, PC));
     const new_thread = new ThreadContext();
     new_thread.setE(new_E);
     new_thread.setPC(new_PC);
@@ -1374,7 +1324,7 @@ function run(heapsize_words) {
     const instr = instrs[PC++];
     microcode[instr.tag](instr);
 
-    if (instr != "ENDGO" && i % switch_freq == 0) {
+    if (i % switch_freq == 0) {
       curr_thread.setE(E);
       curr_thread.setPC(PC);
       curr_thread.setOS(OS);
@@ -1411,10 +1361,8 @@ function compile_and_run(obj) {
   let json_code = { NodeType: "BlockStmt", List: obj.Decls };
   OUTPUTS = [];
   compile_program(json_code);
-  run(2000);
+  run(1500);
   return OUTPUTS;
 }
-
-// compile_and_run(obj);
 
 module.exports = compile_and_run;
