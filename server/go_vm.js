@@ -7,16 +7,6 @@ Object.entries(require("./utils")).forEach(
 // set up for mark-and-sweep garbage collection
 // ************************************************************/
 
-// Implement Sleep
-// const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-function blockingSleep(ms) {
-  const startTime = new Date().getTime();
-  let currentTime = null;
-  do {
-    currentTime = new Date().getTime();
-  } while (currentTime - startTime < ms);
-}
-
 // Output of program
 let OUTPUTS = [];
 
@@ -89,6 +79,12 @@ const heap_allocate = (tag, size) => {
     console.log("GARBAGE COLLECTION");
     mark_sweep();
   }
+  if (free === -1) {
+    console.log("heap exhausted");
+    error("heap memory exhausted");
+    return;
+    // or error("out of memory")
+  }
 
   // allocate
   const address = free;
@@ -125,14 +121,7 @@ const mark_sweep = () => {
   for (const element of roots) {
     mark(element);
   }
-
   sweep();
-
-  if (free === -1) {
-    console.log("heap exhausted");
-    error("heap memory exhausted");
-    // or error("out of memory")
-  }
 };
 
 const mark = (node) => {
@@ -806,6 +795,7 @@ const compile_comp = {
   GoStmt: (comp, ce) => {
     comp.Call.NodeType = "GoCallExpr";
     compile(comp.Call, ce);
+    instrs[wc++] = { tag: "ENDGO" };
   },
   GoCallExpr: (comp, ce) => {
     compile(comp.Fun, ce);
@@ -1324,7 +1314,7 @@ function run(heapsize_words) {
     const instr = instrs[PC++];
     microcode[instr.tag](instr);
 
-    if (i % switch_freq == 0) {
+    if (instr != "ENDGO" && i % switch_freq == 0) {
       curr_thread.setE(E);
       curr_thread.setPC(PC);
       curr_thread.setOS(OS);
@@ -1333,23 +1323,6 @@ function run(heapsize_words) {
     }
   }
 }
-
-const test = (program, expected, heapsize) => {
-  console.log(
-    `
-****************
-Test case: ` +
-      program +
-      "\n"
-  );
-  const result = parse_compile_run(program, heapsize);
-  if (stringify(result) === stringify(expected)) {
-    console.log("success with result: %s", result);
-  } else {
-    console.log("FAILURE! expected: %s", expected);
-    error(result, "result:");
-  }
-};
 
 function compile_and_run(obj) {
   let main_call = {
