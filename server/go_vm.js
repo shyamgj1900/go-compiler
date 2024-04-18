@@ -1335,7 +1335,7 @@ function compile_and_run(obj) {
   let json_code = { NodeType: "BlockStmt", List: obj.Decls };
   OUTPUTS = [];
   compile_program(json_code);
-  run(1000);
+  run(1500);
   return OUTPUTS;
 }
 
