@@ -7,16 +7,6 @@ Object.entries(require("./utils")).forEach(
 // set up for mark-and-sweep garbage collection
 // ************************************************************/
 
-// Implement Sleep
-// const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-function blockingSleep(ms) {
-  const startTime = new Date().getTime();
-  let currentTime = null;
-  do {
-    currentTime = new Date().getTime();
-  } while (currentTime - startTime < ms);
-}
-
 // Output of program
 let OUTPUTS = [];
 
@@ -27,7 +17,6 @@ let OUTPUTS = [];
 // add values destructively to the end of
 // given array; return the array
 const push = (array, ...items) => {
-  // fixed by Liew Zhao Wei, see Discussion 5
   for (let item of items) {
     array.push(item);
   }
@@ -37,6 +26,14 @@ const push = (array, ...items) => {
 // return the last element of given array
 // without changing the array
 const peek = (array, address) => array.slice(-1 - address)[0];
+
+// Error message
+const error = (message) => {
+  if (!OUTPUTS.includes(message)) {
+    OUTPUTS.push(message);
+    PC = instrs.length - 1;
+  }
+};
 
 // *************************
 // HEAP
@@ -84,6 +81,12 @@ const heap_allocate = (tag, size) => {
     console.log("GARBAGE COLLECTION");
     mark_sweep();
   }
+  if (free === -1) {
+    console.log("heap exhausted");
+    error("heap memory exhausted");
+    return;
+    // or error("out of memory")
+  }
 
   // allocate
   const address = free;
@@ -120,14 +123,7 @@ const mark_sweep = () => {
   for (const element of roots) {
     mark(element);
   }
-
   sweep();
-
-  if (free === -1) {
-    console.log("heap exhausted");
-    error("heap memory exhausted");
-    // or error("out of memory")
-  }
 };
 
 const mark = (node) => {
@@ -595,9 +591,6 @@ const builtin_implementation = {
   is_null: () => (is_Null(OS.pop()) ? True : False),
   Lock: () => {
     const id = OS.pop();
-    // const frame_index = OS.pop();
-    // const value_index = OS.pop();
-    // const state = OS.pop();
     if (mutex_table[id]) {
       curr_thread.setE(E);
       curr_thread.setOS(OS);
@@ -614,26 +607,13 @@ const builtin_implementation = {
       is_context_switch = true;
       console.log("Mutex already locked");
     } else {
-      // heap_set_Environment_value(
-      //   E,
-      //   [frame_index, value_index],
-      //   JS_value_to_address(true)
-      // );
       mutex_table[id] = true;
       console.log("Locking Mutex");
     }
   },
   Unlock: () => {
     const id = OS.pop();
-    // const frame_index = OS.pop();
-    // const value_index = OS.pop();
-    // const state = OS.pop();
     if (mutex_table[id]) {
-      // heap_set_Environment_value(
-      //   E,
-      //   [frame_index, value_index],
-      //   JS_value_to_address(false)
-      // );
       mutex_table[id] = false;
       console.log("Unlocking Mutex");
     } else {
@@ -743,13 +723,10 @@ const compile_comp = {
   UnaryExpr: (comp, ce) => {
     if (comp.Op === "<-") {
       //attempt to access channel - ensure in scope
-      // compile({ NodeType: "Ident", Name: comp.X.Name }, ce);
       instrs[wc++] = {
         tag: "LD",
         pos: compile_time_environment_position(ce, comp.X.Name),
       };
-      //POP OS @ RUNTIME to remove chan value
-      // instrs[wc++] = { tag: "POP" };
 
       instrs[wc++] = {
         tag: "RECV",
@@ -871,27 +848,14 @@ const compile_comp = {
       tag: "LD",
       pos: compile_time_environment_position(ce, comp.Chan.Name),
     };
-    // compile(comp.Value, ce);
-    // instrs[wc++] = {
-    //   tag: "ASSIGN",
-    //   pos: compile_time_environment_position(ce, comp.Chan.Name),
-    // };
-    // POP OS @ RUNTIME to remove chan value
-    // instrs[wc++] = { tag: "POP" };
-
-    if (comp.Value.Name === "true" || comp.Value.Name === "false") {
-      instrs[wc++] = {
-        tag: "SEND",
-        pos: compile_time_environment_position(ce, comp.Chan.Name),
-        value: comp.Value.Name === "true",
-      };
-    } else {
-      instrs[wc++] = {
-        tag: "SEND",
-        pos: compile_time_environment_position(ce, comp.Chan.Name),
-        value: Number(comp.Value.Value),
-      };
-    }
+    let curr_wc = wc;
+    compile(comp.Value, ce);
+    let next_wc = wc;
+    instrs[wc++] = {
+      tag: "SEND",
+      pos: compile_time_environment_position(ce, comp.Chan.Name),
+      len: next_wc - curr_wc + 2,
+    };
   },
   GenDecl: (comp, ce) => {
     if (comp.Specs[0].Values !== null) {
@@ -907,20 +871,6 @@ const compile_comp = {
             comp.Specs[0].Names[0].Name
           ),
         };
-        // compile(
-        //   {
-        //     NodeType: "AssignStmt",
-        //     Lhs: [comp.Specs[0].Names[0]],
-        //     Tok: "=",
-        //     Rhs: [
-        //       {
-        //         NodeType: "Ident",
-        //         Name: "false", //some dummy value
-        //       },
-        //     ],
-        //   },
-        //   ce
-        // );
       } else {
         compile(comp.Specs[0].Values[0], ce);
         instrs[wc++] = {
@@ -940,20 +890,6 @@ const compile_comp = {
             comp.Specs[0].Names[0].Name
           ),
         };
-        // compile(
-        //   {
-        //     NodeType: "AssignStmt",
-        //     Lhs: [comp.Specs[0].Names[0]],
-        //     Tok: "=",
-        //     Rhs: [
-        //       {
-        //         NodeType: "Ident",
-        //         Name: "false",
-        //       },
-        //     ],
-        //   },
-        //   ce
-        // );
       }
     }
   },
@@ -1013,7 +949,7 @@ const binop_microcode = {
   "+": (x, y) =>
     (is_number(x) && is_number(y)) || (is_string(x) && is_string(y))
       ? x + y
-      : error([x, y], "+ expects two numbers" + " or two strings, got:"),
+      : error(`operand types not supported for +: ${x}, ${y}`),
   "*": (x, y) => x * y,
   "-": (x, y) => x - y,
   "/": (x, y) => x / y,
@@ -1119,10 +1055,9 @@ const microcode = {
   },
   ASSIGN: (instr) => heap_set_Environment_value(E, instr.pos, peek(OS, 0)),
   CHANNEL: (instr) => {
-    const id = channel_count; //Object.keys(channel_table).length;
+    const id = channel_count;
     channel_count++;
     OS.push(0);
-    // channel_table[id] = 0;
     heap_set_Environment_value(E, instr.pos, id);
   },
   MUTEX: (instr) => {
@@ -1146,13 +1081,15 @@ const microcode = {
   SEND: (instr) => {
     // save the value in the current thread's reg
     // block and context switch
+    const value = OS.pop();
     const id = OS.pop();
 
     curr_thread.setE(E);
     curr_thread.setOS(OS);
     curr_thread.setRTS(RTS);
-    curr_thread.setPC(PC - 2);
-    curr_thread.setChannels(id, instr.value);
+    curr_thread.setPC(PC - instr.len);
+    curr_thread.setChannelLength(id, instr.len);
+    curr_thread.setChannels(id, address_to_JS_value(value));
     context_Q.push(curr_thread);
 
     // context switch
@@ -1173,7 +1110,8 @@ const microcode = {
       if (id in thread.channels) {
         push(OS, JS_value_to_address(thread.channels[id]));
         delete thread.channels[id];
-        thread.PC += 2;
+        const len = thread.getChannelsLength(id);
+        thread.PC += len;
         return;
       }
     }
@@ -1205,7 +1143,7 @@ const microcode = {
       new_frame,
       heap_get_Closure_environment(fun)
     );
-    push([], heap_allocate_Callframe(E, PC));
+    // push([], heap_allocate_Callframe(E, PC));
     const new_thread = new ThreadContext();
     new_thread.setE(new_E);
     new_thread.setPC(new_PC);
@@ -1272,6 +1210,7 @@ class ThreadContext {
     this.RTS = [];
     this.E = 0;
     this.channels = {};
+    this.channels_length = {};
     this.sleep = 0;
   }
 
@@ -1299,12 +1238,20 @@ class ThreadContext {
     this.channels[id] = value;
   }
 
+  setChannelLength(id, length) {
+    this.channels_length[id] = length;
+  }
+
   getSleep() {
     return this.sleep;
   }
 
   getChannels() {
     return this.channels;
+  }
+
+  getChannelsLength(id) {
+    return this.channels_length[id];
   }
 }
 
@@ -1377,23 +1324,6 @@ function run(heapsize_words) {
     }
   }
 }
-
-const test = (program, expected, heapsize) => {
-  console.log(
-    `
-****************
-Test case: ` +
-      program +
-      "\n"
-  );
-  const result = parse_compile_run(program, heapsize);
-  if (stringify(result) === stringify(expected)) {
-    console.log("success with result: %s", result);
-  } else {
-    console.log("FAILURE! expected: %s", expected);
-    error(result, "result:");
-  }
-};
 
 function compile_and_run(obj) {
   let main_call = {
