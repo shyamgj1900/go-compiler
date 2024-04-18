@@ -29,8 +29,10 @@ const peek = (array, address) => array.slice(-1 - address)[0];
 
 // Error message
 const error = (message) => {
-  OUTPUTS.push(message);
-  PC = instrs.length - 1;
+  if (!OUTPUTS.includes(message)) {
+    OUTPUTS.push(message);
+    PC = instrs.length - 1;
+  }
 };
 
 // *************************
@@ -1053,10 +1055,9 @@ const microcode = {
   },
   ASSIGN: (instr) => heap_set_Environment_value(E, instr.pos, peek(OS, 0)),
   CHANNEL: (instr) => {
-    const id = channel_count; //Object.keys(channel_table).length;
+    const id = channel_count;
     channel_count++;
     OS.push(0);
-    // channel_table[id] = 0;
     heap_set_Environment_value(E, instr.pos, id);
   },
   MUTEX: (instr) => {
@@ -1334,7 +1335,7 @@ function compile_and_run(obj) {
   let json_code = { NodeType: "BlockStmt", List: obj.Decls };
   OUTPUTS = [];
   compile_program(json_code);
-  run(1500);
+  run(1000);
   return OUTPUTS;
 }
 
