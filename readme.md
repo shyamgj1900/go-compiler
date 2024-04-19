@@ -18,6 +18,9 @@ their Go code and an output console displays the results.
 
 ### Note: Make sure to have Docker installed locally
 
+- Go into the root directory go-virtual-machine
+  `cd go-virtual-machine`
+
 ### Frontend
 
 - Go into the frontend directory.
@@ -38,6 +41,12 @@ their Go code and an output console displays the results.
   `cd ../docker`
 - To run the docker containers.
   `docker-compose up`
+
+### Test cases
+
+- Test cases are present in the test directory. Copy the code from the files and run it on the web UI.
+  `cd test`
+- Sequential PL tests are in the sequential directory and concurrent PL tests are in the concurrent directory.
 
 ## Usage
 
