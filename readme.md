@@ -42,15 +42,15 @@ their Go code and an output console displays the results.
 - To run the docker containers.
   `docker-compose up`
 
+## Usage
+
+To access the web UI, go to a browser of your choice and access http://localhost:4200
+
 ### Test cases
 
 - Test cases are present in the test directory. Copy the code from the files and run it on the web UI.
   `cd test`
 - Sequential PL tests are in the sequential directory and concurrent PL tests are in the concurrent directory.
-
-## Usage
-
-To access the web UI, go to a browser of your choice and access http://localhost:4200
 
 ## Contact
 
