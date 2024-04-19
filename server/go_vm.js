@@ -237,19 +237,19 @@ const word_to_string = (word) => {
 // word of the node is a header, and the first byte of the
 // header is a tag that identifies the type of node
 
-const False_tag = 0;
-const True_tag = 1;
-const Number_tag = 2;
-const Null_tag = 3;
-const Unassigned_tag = 4;
-const Undefined_tag = 5;
-const Blockframe_tag = 6;
-const Callframe_tag = 7;
-const Closure_tag = 8;
-const Frame_tag = 9; // 0000 1001
-const Environment_tag = 10; // 0000 1010
-const Pair_tag = 11;
-const Builtin_tag = 12;
+const False_tag = -1;
+const True_tag = -2;
+const Number_tag = -3;
+const Null_tag = -4;
+const Unassigned_tag = -5;
+const Undefined_tag = -6;
+const Blockframe_tag = -7;
+const Callframe_tag = -8;
+const Closure_tag = -9;
+const Frame_tag = -10; // 0000 1001
+const Environment_tag = -11; // 0000 1010
+const Pair_tag = -12;
+const Builtin_tag = -13;
 
 // all values (including literals) are allocated on the heap.
 
@@ -592,6 +592,7 @@ const builtin_implementation = {
   Lock: () => {
     const id = OS.pop();
     if (mutex_table[id]) {
+      OS.pop();
       curr_thread.setE(E);
       curr_thread.setOS(OS);
       curr_thread.setRTS(RTS);
